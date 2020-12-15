@@ -4,26 +4,28 @@ jupyter:
     text_representation:
       extension: .Rmd
       format_name: rmarkdown
-      format_version: '1.0'
-      jupytext_version: 1.0.2
+      format_version: '1.2'
+      jupytext_version: 1.7.1
   kernelspec:
     display_name: Python 3
     language: python
     name: python3
 ---
 
+<!-- #region id="B2tRS9-cguy0" -->
 # Experimentation with stochastic ODE solver
 
+<!-- #endregion -->
 
-```{python id=0IwBQzFs4gOM}
+```{python id="0IwBQzFs4gOM"}
 
 ```
 
-```{python colab={'base_uri': 'https://localhost:8080/'}, id=ZQHuyui-EPko, outputId=d0c2590c-8225-4d52-af0c-7b0aba6a9a71}
+```{python colab={'base_uri': 'https://localhost:8080/'}, id="ZQHuyui-EPko", outputId="d0c2590c-8225-4d52-af0c-7b0aba6a9a71"}
 # !pip install sdeint
 ```
 
-```{python colab={'base_uri': 'https://localhost:8080/', 'height': 282}, id=n5Dfd-9MET42, outputId=57e96e7b-d455-4b87-8167-c068edc7e3c9}
+```{python colab={'base_uri': 'https://localhost:8080/', 'height': 282}, id="n5Dfd-9MET42", outputId="57e96e7b-d455-4b87-8167-c068edc7e3c9"}
 import numpy as np
 import sdeint
 import matplotlib.pyplot as plt
@@ -45,9 +47,11 @@ result = sdeint.itoint(f, g, x0, tspan)
 plt.scatter(tspan, result)
 ```
 
+<!-- #region id="0dYkHdxwg_v_" -->
 # Model variables - legend:
+<!-- #endregion -->
 
-
+<!-- #region id="3tkGWF-iszq5" -->
 complexL/U - importin-cargo complex, labeled (L) or unlabeled (U) 
 
 freeL/U - free cargo, labeled (L) or unlabeled (U) 
@@ -70,14 +74,21 @@ L - liter
 
 fL - femtoliter
 
+<!-- #endregion -->
 
-```{python id=qJdluKoeElzE}
+```{python id="qJdluKoeElzE"}
 
 ```
 
+<!-- #region id="WbQy_uW8lzIR" -->
 # Class for simulating transport using ODEs
+<!-- #endregion -->
 
-```{python id=EFB0CCNeyYPC}
+```{python}
+
+```
+
+```{python id="EFB0CCNeyYPC"}
 import numpy as np
 import re
 
@@ -246,7 +257,7 @@ class TransportSimulation():
     self.nmol["freeU_N"]= 0 # (unlabeled)
     del self.nmol["cargo_N"] 
     # Ran in all:
-    self.set_RAN_distribution(Ran_cell_M= 2e-6, # total physiological concentration of Ran # TODO: check in the literature 
+    self.set_RAN_distribution(Ran_cell_M= 2e-5, # total physiological concentration of Ran # TODO: check in the literature 
                               parts_GTP_N=10,
                               parts_GTP_C=1,
                               parts_GDP_N=1,
@@ -626,9 +637,11 @@ class TransportSimulation():
 
 ```
 
+<!-- #region id="hT1IxvgltqJP" -->
 # A few basic sanity checks
+<!-- #endregion -->
 
-```{python id=Z_xyljMutnMy, jupyter={'source_hidden': True}}
+```{python id="Z_xyljMutnMy", jupyter={'source_hidden': True}}
 def utility_test():
   global N_A
   ts= TransportSimulation()
@@ -691,7 +704,7 @@ def const_test_C(trans_sim, n):
         print(trans_sim.c_N_M, trans_sim.c_C_M, trans_sim.nmol_NPC)
 ```
 
-```{python id=axD0ni1EmJ5b, jupyter={'source_hidden': True}}
+```{python id="axD0ni1EmJ5b", jupyter={'source_hidden': True}}
 utility_test()
 #importin_binding_rate(fraction_C_b, nmol_GDP_C)
 ts = TransportSimulation()
@@ -702,9 +715,11 @@ const_test(ts, 1000)
 
 ```
 
+<!-- #region id="TUmW9lXpUYDr" -->
 # Simulation main code
+<!-- #endregion -->
 
-```{python id=STTnUpOGmnSr, jupyter={'source_hidden': True}}
+```{python id="STTnUpOGmnSr", jupyter={'source_hidden': True}}
 from matplotlib import pyplot as plt
 
 def time_series(sim_time_sec, attributes, n_skip=10, **kwargs):
@@ -750,7 +765,7 @@ def plot_simulation_attributes(sim_time_sec, attributes, n_skip=10, log=True, ax
 
 ```
 
-```{python id=lzmLU0YTw74H, jupyter={'source_hidden': True}}
+```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
 sim_time_sec= 300.0
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC', 'freeL_N', 'freeL_C', 'complexL_C', 'complexL_N']
@@ -763,7 +778,7 @@ dock_attributes = ['c_C_M', 'fraction_C_b', 'nmol_NPC', 'NPC_dock_capacity']
  
 ```
 
-```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id=HcFrpVqGyUYA, jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId=6eda17e7-207f-4440-e5b7-8ee5561ff8c2}
+```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
 
 is_log= True
 plt.figure(figsize=(10,5))
@@ -778,7 +793,7 @@ plt.show()
 
 ```
 
-```{python colab={'base_uri': 'https://localhost:8080/', 'height': 327}, id=XhwtdMILBQRz, jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId=a839a06b-8902-4553-8096-f39b2a9ea16c}
+```{python colab={'base_uri': 'https://localhost:8080/', 'height': 327}, id="XhwtdMILBQRz", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="a839a06b-8902-4553-8096-f39b2a9ea16c"}
 
 fig, ax = plt.subplots(1, 3,figsize=(40,5))
 c_1 = plot_simulation_attributes(sim_time_sec, cargoL_attributes, log= is_log, ax=ax[0], rate_GDP_N_to_GTP_N_per_sec=0.2)
@@ -809,11 +824,11 @@ def get_tau_passive_diffusion(nmol_per_sec_per_M, volume_L):
 
 ```
 
-```{python id=BhUdzBKH675g}
+```{python id="BhUdzBKH675g"}
 def get_new_transport_simulation():
     ts= TransportSimulation( )        
     ts.set_params(rate_GDP_C_to_GDP_N_per_sec=7)   
-    ts.set_params(dt_sec=2.5e-3)
+    ts.set_params(dt_sec=1e-2)
     return ts
     
 def map_param_grid(nx= 4,
@@ -822,16 +837,17 @@ def map_param_grid(nx= 4,
                    equilibration_time_sec= 150.0, # equilibration time per condition
                    initial_equilibration_time= 300.0 # relevant only if is_reset is False 
                   ):
+    param_range={}
     print(f"nx={nx} ny={ny}")
     epsilon = 1e-9
     c_cargo_M= 50e-6 # TODO: fetch this from the simulation
     param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"] = \
-        np.logspace(0, #0.001+epsilon, 
-                    5, #-epsilon, 
+        np.linspace(1e1, #0.001+epsilon, 
+                    1e3, #-epsilon, 
                     nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
     param_range["rate_free_to_complex_per_sec"] = \
-        np.linspace(epsilon, 
-                    0.5-epsilon, 
+        np.linspace(0.0, 
+                    0.02-epsilon, 
                     ny)
     ts= get_new_transport_simulation()
     for key in param_range.keys():
@@ -869,7 +885,7 @@ def map_param_grid(nx= 4,
 
 ```
 
-```{python id=Edd4bveu5jph, jupyter={'outputs_hidden': True}}
+```{python id="Edd4bveu5jph"}
 def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ''' return N/C ratios from stats_grids computed in the previous cell'''
     nNs= stats_grids["complexL_N"]+stats_grids["freeL_N"]+stats_grids["complexU_N"]+stats_grids["freeU_N"] 
@@ -877,33 +893,32 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-param_range, stats_grids= map_param_grid(nx= 4,
-                                        ny= 3,
+param_range, stats_grids= map_param_grid(nx= 6,
+                                        ny= 6,
                                         is_reset=True, 
-                                        equilibration_time_sec= 300.0)
-```
-
-```{python id=Edd4bveu5jph, jupyter={'outputs_hidden': True}}
+                                        equilibration_time_sec= 200.0)
 ratios= get_N_to_C_ratios(stats_grids, 
                           v_N_L= ts.get_v_N_L(), 
                           v_C_L= ts.get_v_C_L())
-print(ratios)
-
 ```
 
-```{python id=XQvFv3M-NYJN}
+```{python id="Edd4bveu5jph"}
+print(ratios)
+```
+
+```{python id="XQvFv3M-NYJN"}
 import matplotlib.ticker as mtick
 x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
                                      param_range["rate_free_to_complex_per_sec"])
 plt.figure()
 ax=plt.gca()
-ax.imshow(ratios)
+ax.imshow(ratios, vmin=1, vmax=8)
 xlim= ax.get_xlim()
 ylim= ax.get_ylim()
 ax.set_xlim(xlim[1], xlim[0])
 ax.set_ylim(ylim[1], ylim[0])
 plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, ratios)
+plt.contourf(x_meshgrid, y_meshgrid, ratios, vmin=1, vmax=8, levels=250)
 ax= plt.gca()
 ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
 ax.set_ylabel("active import rate")
@@ -924,6 +939,7 @@ ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
 #cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
 print(["{:.1f}".format(xtick) for xtick in param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"]])
 print(param_range)
+
 
 ```
 
