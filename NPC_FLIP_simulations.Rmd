@@ -784,7 +784,7 @@ dock_attributes = ['c_C_M', 'fraction_C_b', 'nmol_NPC', 'NPC_dock_capacity']
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
 
-is_log= True
+is_log= False
 plt.figure(figsize=(10,5))
 plot_simulation_attributes(sim_time_sec, RAN_attributes, log= is_log)
 
@@ -838,17 +838,40 @@ def get_new_transport_simulation():
 ```
 
 ```{python id="BhUdzBKH675g"}
+import multiprocessing
 
-```
+def mp_do_simulation(param_range, i, j, equilibration_time_sec):
+    my_ts= get_new_transport_simulation()
+    my_ts.set_params(max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
+              rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
+    stats = my_ts.simulate(equilibration_time_sec)   
+    return {"i":i, "j":j, "stats":stats}
 
-```{python id="BhUdzBKH675g"}
+def mp_handle_stats(stats_grids, mydicts):
+    for mydict in mydicts:
+        i= mydict["i"]
+        j= mydict["j"]
+        stats= mydict["stats"]
+#        print("My Handle - ", i, j)
+        for nmol_type in stats.keys():
+            if nmol_type=="time_sec":
+                continue
+            try: 
+                pass
+                stats_grids[nmol_type][j, i]= stats[nmol_type][-1] # matrix is indexed row first 
+            except KeyError:
+                print(f"my_handle_stats - Key {nmol_type} not found")
+            except IndexError as e:
+                print(e)
+
+def mp_handle_error(error):
+    print("Error", error)
     
-
-def map_param_grid(nx,
+def map_param_grid_parallel(nx,
                    ny,
-                   is_reset= False,  # whether to reset the simulation for every param combination 
                    equilibration_time_sec= 150.0, # equilibration time per condition
-                   initial_equilibration_time= 300.0 # relevant only if is_reset is False 
+                   initial_equilibration_time= 300.0, # relevant only if is_reset is False 
+                   n_processors= 5
                   ):
     param_range={}
     print(f"nx={nx} ny={ny}")
@@ -865,36 +888,33 @@ def map_param_grid(nx,
     ts= get_new_transport_simulation()
     for key in param_range.keys():
         print("Param {:} default value is {:}".format(key, getattr(ts, key)))
-    if not is_reset:
-        ts.set_params(rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][0],
-                  max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][0])
-        ts.simulate(sim_time_sec= initial_equilibration_time, 
-                    nskip_statistics= 200) #get to initial equilibrium, but don't waste time saving statistics
     stats_grids = {}
     for nmol_type in ts.nmol.keys(): # TODO: add get_nmols()
         stats_grids[nmol_type]= np.ndarray((ny, nx)) # Row major - y coordinate goes first
+    jobs_params= []
     for j in range(ny):
-    #    print(f"j={j}")
-        # scan the matrix s.t. we only do a small change each time for short equilibration times
-        if (j%2==0) or is_reset:
-            i_indices = range(nx)
-        else:
-            i_indices = range(nx-1, -1, -1)
-        for i in i_indices:
-            print(f"j={j} i={i}")
-            if is_reset:
-                ts= get_new_transport_simulation()
-            ts.set_params(max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
-                          rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
-            stats = ts.simulate(equilibration_time_sec)
-            ts.reset_simulation_time()
-            for nmol_type in ts.nmol.keys():
-                try: 
-                    stats_grids[nmol_type][j, i]= stats[nmol_type][-1] # matrix is indexed row first 
-                except KeyError:
-                    print(f"Key {nmol_type} not found")
+        for i in range(nx):
+            jobs_params.append((param_range.copy(),
+                                i,
+                                j,
+                                equilibration_time_sec))
+    print("njobs={}".format(len(jobs_params)))
+    callback_function = \
+        lambda mydict: mp_handle_stats(stats_grids, mydict)
+    pool= multiprocessing.Pool(processes= n_processors)
+    results= pool.starmap_async(mp_do_simulation,
+                               jobs_params,
+                               callback= callback_function,
+                               error_callback=mp_handle_error)
+    results.wait()
+    pool.close()
+    pool.join()
     return param_range, stats_grids
-        
+
+```
+
+```{python id="BhUdzBKH675g"}
+
 ```
 
 ```{python id="Edd4bveu5jph"}
@@ -905,9 +925,9 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-param_range, stats_grids= map_param_grid(nx= 9,
+param_range, stats_grids= map_param_grid_parallel(nx= 9,
                                         ny= 12,
-                                        is_reset=True, 
+#                                        is_reset=True, 
                                         equilibration_time_sec= 100.0)
 ratios= get_N_to_C_ratios(stats_grids, 
                           v_N_L= ts.get_v_N_L(), 
