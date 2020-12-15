@@ -784,7 +784,7 @@ dock_attributes = ['c_C_M', 'fraction_C_b', 'nmol_NPC', 'NPC_dock_capacity']
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
 
-is_log= False
+is_log= True
 plt.figure(figsize=(10,5))
 plot_simulation_attributes(sim_time_sec, RAN_attributes, log= is_log)
 
@@ -832,7 +832,7 @@ def get_tau_passive_diffusion(nmol_per_sec_per_M, volume_L):
 ```{python id="BhUdzBKH675g"}
 def get_new_transport_simulation():
     ts= TransportSimulation( )        
-    ts.set_params(rate_GDP_C_to_GDP_N_per_sec=7)   
+#    ts.set_params(rate_GDP_C_to_GDP_N_per_sec=7)   
     ts.set_params(dt_sec=1e-3)
     return ts
 ```
@@ -920,12 +920,12 @@ print(ratios)
 
 ```{python id="XQvFv3M-NYJN"}
 import matplotlib.ticker as mtick
-vmax=10
+vmax=4
 x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
                                      param_range["rate_free_to_complex_per_sec"])
 plt.figure()
 ax=plt.gca()
-plt.imshow(ratios, vmin=0, vmax=vmax)
+plt.imshow(ratios, vmin=1, vmax=vmax)
 xlim= ax.get_xlim()
 ylim= ax.get_ylim()
 ax.set_xlim(xlim[1], xlim[0])
@@ -935,7 +935,7 @@ ticks = cb.get_ticks()
 cb.set_ticks(ticks)
 ##### Contourf
 plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, ratios, vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,20), extend='both')
+plt.contourf(x_meshgrid, y_meshgrid, ratios, vmin=1.0, vmax=vmax, levels=np.linspace(1.0,vmax,21), extend='both')
 ax= plt.gca()
 ax.set_xscale('log')
 ax.set_yscale('log')
@@ -969,7 +969,8 @@ complexL_C_fraction= stats_grids["complexL_C"]/(stats_grids["complexL_C"]+stats_
 ##### Contourf
 vmax=1.0
 plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, complexL_C_fraction, vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,20), extend='both')
+plt.contourf(x_meshgrid, y_meshgrid, complexL_N_fraction, 
+             vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,11), extend='both')
 ax= plt.gca()
 ax.set_xscale('log')
 ax.set_yscale('log')
@@ -983,7 +984,7 @@ ax.set_xlim(xlim[1], xlim[0])
 print(ax.get_xticks())
 #ax.set_xticklabels(["{:.1f}".format(xtick) for xtick in param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"]])
 #ax.set_yticklabels(["{:.2f}".format(ytick) for ytick in param_range["rate_free_C_to_complex_C_per_sec"]])
-cb = plt.colorbar(label="N/C ratio")
+cb = plt.colorbar(label="bound fraction (N)")
 ticks = cb.get_ticks()
 cb.set_ticks(ticks)
 
