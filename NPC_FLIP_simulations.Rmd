@@ -197,9 +197,8 @@ class TransportSimulation():
     n_NPCs= 200 # (maximal estimate from Timney et al. 2016 paper)
     n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
     self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
-    # Rates:
-    # TODO change to rate_complex_to_NPC_per_site_per_sec_per_M
-    self.rate_complex_to_NPC_per_site_per_sec = 10.0/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
+    # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
+    self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 20.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
     self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 10000.0
     self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 10000.0
     self.fraction_complex_NPC_to_complex_N_C_per_sec= 0.1
@@ -212,7 +211,7 @@ class TransportSimulation():
     self.rate_complex_C_to_free_C_per_sec = 0.01       
     self.rate_free_C_to_complex_C_per_sec = 0.1
     self.passive_competition_weight= 0.0 # a number between 0.0 and 1.0 quantifying the weight of competition # TODO: this could be a flag
-    self.max_passive_export_rate_per_sec= 0.01 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
+    self.max_passive_diffusion_rate_nmol_per_sec_per_M= 200 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
     self.bleach_volume_L_per_sec= 1.0e-15 # cytoplasmic cargo volume being bleached per second
     self.bleach_start_time_sec= 100.0
     self.set_params(**kwargs)
@@ -407,11 +406,11 @@ class TransportSimulation():
       # Comment: competition is assumed to have zero effect at this time
       fraction_bound_dock_sites_NPC= (self.nmol["complexL_NPC"] + self.nmol["complexU_NPC"]) / self.NPC_dock_sites
       competition_multiplier= 1.0 - self.passive_competition_weight * fraction_bound_dock_sites_NPC
-      f= self.max_passive_export_rate_per_sec \
+      f= self.max_passive_diffusion_rate_nmol_per_sec_per_M \
         * competition_multiplier \
         * self.dt_sec
-      nL= f * ( self.nmol["freeL_N"]  - self.nmol["freeL_C"])
-      nU= f * ( self.nmol["freeU_N"]  - self.nmol["freeU_C"])      
+      nL= f * self.get_concentration_M("freeL_N")  - f * self.get_concentration_M("freeL_C")
+      nU= f * self.get_concentration_M("freeU_N")  - f * self.get_concentration_M("freeU_C")      
       return {"freeL_N": -nL,
               "freeL_C": +nL,
               "freeU_N": -nU,
@@ -426,14 +425,17 @@ class TransportSimulation():
     """
     nmol_free_sites_NPC = (self.NPC_dock_sites - self.nmol["complexL_NPC"] - self.nmol["complexU_NPC"])
     f = nmol_free_sites_NPC \
-        * self.rate_complex_to_NPC_per_site_per_sec \
+        * self.rate_complex_to_NPC_per_free_site_per_sec_per_M \
         * self.dt_sec
     # TODO: debug - something is weird here (BR Dec 11,2020)
-
-    nL_N= f * self.nmol["complexL_N"]  
-    nL_C= f * self.nmol["complexL_C"] 
-    nU_N= f * self.nmol["complexU_N"] 
-    nU_C= f * self.nmol["complexU_C"]
+    cL_N_M= self.get_concentration_M("complexL_N")
+    cL_C_M= self.get_concentration_M("complexL_C")
+    cU_N_M= self.get_concentration_M("complexU_N")
+    cU_C_M= self.get_concentration_M("complexU_C")
+    nL_N= f * cL_N_M
+    nL_C= f * cL_C_M 
+    nU_N= f * cU_N_M 
+    nU_C= f * cU_C_M
     assert_coeff= 2.0
     assert1_almost= (nL_N+nL_C+nU_N+nU_C <= assert_coeff*nmol_free_sites_NPC) 
     assert2_almost= (nL_N+nU_N <= assert_coeff*(self.nmol["complexL_N"]+self.nmol["complexU_N"])) 
@@ -443,7 +445,7 @@ class TransportSimulation():
       assert2= (nL_N+nU_N <= self.nmol["complexL_N"]+self.nmol["complexU_N"]) 
       assert3= (nL_C+nU_C <= self.nmol["complexL_C"]+self.nmol["complexU_C"])
       print(self.nmol)
-      print(f"f {f} dLabeled: N {nL_N} C {nL_C}, dUnlableed: N {nU_N} C {nU_C}")
+      print(f"f {f} dLabeled: N {nL_N} C {nL_C}, dUnlabeled: N {nU_N} C {nU_C}")
       assert(assert1)
       assert(assert2)
       assert(assert3)
@@ -778,7 +780,7 @@ export_rate = np.linspace(0.01+epsilon, 0.03-epsilon, y)
 ratios = np.ndarray((x,y))
 ts= TransportSimulation(rate_GDP_C_to_GDP_N_per_sec=7, dt_sec=1e-2 )
 ts.set_params(rate_free_C_to_complex_C_per_sec = bind_strength[0],
-              max_passive_export_rate_per_sec  = export_rate[0])
+              max_passive_diffusion_rate_nmol_per_sec_per_M  = export_rate[0])
 ts.simulate(150, 200) #get to equilibrium, but don't waste time saving statistics
 ts.set_params(dt_sec=1e-3)
 for j in range(y):
@@ -789,7 +791,7 @@ for j in range(y):
         i_indices = range(x-1, -1, -1)
     for i in i_indices:
         ts.set_params(rate_free_C_to_complex_C_per_sec = bind_strength[i],
-                      max_passive_export_rate_per_sec  = export_rate[j])
+                      max_passive_diffusion_rate_nmol_per_sec_per_M  = export_rate[j])
         ratios[i,j] = ts.get_equilibrium_C_N_ratio(20)
         
 
@@ -797,7 +799,7 @@ for j in range(y):
 
 ```{python id=Edd4bveu5jph, jupyter={'outputs_hidden': True}}
 ts= TransportSimulation()#rate_free_C_to_complex_C_per_sec = bind_strength[i],
-                        #max_passive_export_rate_per_sec  = export_rate[j])
+                        #max_passive_diffusion_rate_nmol_per_sec_per_M  = export_rate[j])
 ts.get_equilibrium_C_N_ratio(5)
 ```
 
@@ -810,6 +812,10 @@ cb = plt.colorbar(label="ratio of cargo in cytoplasm to cargo in nucleus")
 ticks = cb.get_ticks()
 cb.set_ticks(ticks)
 #cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
+
+```
+
+```{python}
 
 ```
 
