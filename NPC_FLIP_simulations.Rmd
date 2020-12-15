@@ -176,9 +176,12 @@ class TransportSimulation():
     ''' set time step in seconds '''
     self.dt_sec= dt_sec
 
-  def get_time_step(dt_sec):
+  def get_time_step(self, dt_sec):
     ''' get time step in seconds '''
-    self.dt_sec= dt_sec    
+    self.dt_sec= dt_sec  
+    
+  def reset_simulation_time(self):
+    self.sim_time_sec= 0.0
 
 
   ###################
@@ -213,7 +216,7 @@ class TransportSimulation():
     self.passive_competition_weight= 0.0 # a number between 0.0 and 1.0 quantifying the weight of competition # TODO: this could be a flag
     self.max_passive_diffusion_rate_nmol_per_sec_per_M= 200 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
     self.bleach_volume_L_per_sec= 1.0e-15 # cytoplasmic cargo volume being bleached per second
-    self.bleach_start_time_sec= 100.0
+    self.bleach_start_time_sec= np.inf # no bleaching by default
     self.set_params(**kwargs)
 
 
@@ -584,8 +587,8 @@ class TransportSimulation():
     nsteps= int(np.ceil(equilibration_time/self.dt_sec))
     for i in range(nsteps):
         self.do_one_time_step()
-    nmol_C = (self.nmol["complexL_C"] + self.nmol["freeL_C"]) + (self.nmol["complexL_C"] + self.nmol["freeL_C"])
-    nmol_N = (self.nmol["complexL_N"] + self.nmol["freeL_N"]) + (self.nmol["complexL_N"] + self.nmol["freeL_N"])
+    nmol_C = (self.nmol["complexL_C"] + self.nmol["freeL_C"]) + (self.nmol["complexU_C"] + self.nmol["freeU_C"])
+    nmol_N = (self.nmol["complexL_N"] + self.nmol["freeL_N"]) + (self.nmol["complexU_N"] + self.nmol["freeU_N"])
     return nmol_C / nmol_N
 
   ##########################
@@ -604,6 +607,10 @@ class TransportSimulation():
         self.nmol["complexU_NPC"]
   def get_total_cargo_nmol(self):
       return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
+```
+
+```{python}
+
 ```
 
 # A few basic sanity checks
@@ -693,7 +700,7 @@ def time_series(sim_time_sec, attributes, n_skip=10, **kwargs):
   '''
   ts= TransportSimulation(**kwargs)
   ts.bleach_start_time_sec= 200.0
-  ts.dt_sec= 1e-3
+  ts.dt_sec= 1e-2
   n= int(np.ceil(sim_time_sec / ts.dt_sec))
   print(f"Running for n={n} time steps")
   n_frames= int(np.floor(n/n_skip)) + 1 
@@ -772,46 +779,105 @@ ax[2].legend()
 ```
 
 ```{python id=BhUdzBKH675g}
-epsilon = 1e-5
+epsilon = 1e-9
 x = 10
 y = 10
-bind_strength = np.linspace(epsilon, 0.5-epsilon, x)
-export_rate = np.linspace(0.01+epsilon, 0.03-epsilon, y)
-ratios = np.ndarray((x,y))
+EQUILIBRATION_TIME_SEC=200.0
+param_range= {}
+param_range["rate_free_C_to_complex_C_per_sec"] = np.linspace(epsilon, 0.5-epsilon, x)
+param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"] = np.linspace(0.01+epsilon, 0.03-epsilon, y) / 50E-6 # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
 ts= TransportSimulation(rate_GDP_C_to_GDP_N_per_sec=7, dt_sec=1e-2 )
-ts.set_params(rate_free_C_to_complex_C_per_sec = bind_strength[0],
-              max_passive_diffusion_rate_nmol_per_sec_per_M  = export_rate[0])
+ts.set_params(rate_free_C_to_complex_C_per_sec = param_range["rate_free_C_to_complex_C_per_sec"][0],
+              max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][0])
 ts.simulate(150, 200) #get to equilibrium, but don't waste time saving statistics
-ts.set_params(dt_sec=1e-3)
+ts.set_params(dt_sec=1e-2)
+stats_grids = {}
+for nmol_type in ts.nmol.keys(): # TODO: add get_nmols()
+    stats_grids[nmol_type]= np.ndarray((x,y))
 for j in range(y):
+    print(f"j={j}")
     # scan the matrix s.t. we only do a small change each time for short equilibration times
     if j%2==0:
         i_indices = range(x)
     else:
         i_indices = range(x-1, -1, -1)
     for i in i_indices:
-        ts.set_params(rate_free_C_to_complex_C_per_sec = bind_strength[i],
-                      max_passive_diffusion_rate_nmol_per_sec_per_M  = export_rate[j])
-        ratios[i,j] = ts.get_equilibrium_C_N_ratio(20)
+        ts.set_params(rate_free_C_to_complex_C_per_sec = param_range["rate_free_C_to_complex_C_per_sec"][i],
+                      max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][j])        
+        stats = ts.simulate(EQUILIBRATION_TIME_SEC)
+        ts.reset_simulation_time()
+        for nmol_type in ts.nmol.keys():
+            try: 
+                stats_grids[nmol_type][i,j]= stats[nmol_type][-1] 
+            except KeyError:
+                print(f"Key {nmol_type} not found")
         
 
 ```
 
 ```{python id=Edd4bveu5jph, jupyter={'outputs_hidden': True}}
-ts= TransportSimulation()#rate_free_C_to_complex_C_per_sec = bind_strength[i],
-                        #max_passive_diffusion_rate_nmol_per_sec_per_M  = export_rate[j])
-ts.get_equilibrium_C_N_ratio(5)
+def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
+    ''' return N/C ratios from stats_grids computed in the previous cell'''
+    nNs= stats_grids["complexL_N"]+stats_grids["freeL_N"]+stats_grids["complexU_N"]+stats_grids["freeU_N"] 
+    nCs= stats_grids["complexL_C"]+stats_grids["freeL_C"]+stats_grids["complexU_C"]+stats_grids["freeU_C"]
+    ratios= (nNs/v_N_L) / (nCs/v_C_L)
+    return ratios
+ratios= get_N_to_C_ratios(stats_grids, 
+                          v_N_L= ts.get_v_N_L(), 
+                          v_C_L= ts.get_v_C_L())
 ```
 
 ```{python id=XQvFv3M-NYJN}
 import matplotlib.ticker as mtick
+
 plt.imshow(ratios)
-plt.xlabel("export rate")
-plt.ylabel("active import rate")
-cb = plt.colorbar(label="ratio of cargo in cytoplasm to cargo in nucleus")
+ax= plt.gca()
+ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
+ax.set_ylabel("active import rate")
+xlim= ax.get_xlim()
+ylim= ax.get_ylim()
+ax.set_xlim(xlim[1], xlim[0])
+ax.set_ylim(ylim[1], ylim[0])
+ax.set_xticklabels(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"])
+ax.set_yticklabels(param_range["rate_free_C_to_complex_C_per_sec"])
+ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
+ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
+cb = plt.colorbar(label="N/C ratio")
 ticks = cb.get_ticks()
 cb.set_ticks(ticks)
+
 #cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
+    
+```
+
+## Small test
+
+```{python}
+ts= TransportSimulation()
+ts.bleach_start_time_sec= 30000.0
+ts.dt_sec= 1e-2
+ts.rate_GDP_N_to_GTP_N_per_sec= 0.5
+ts.max_passive_export_rate_per_sec=  0.01
+stats= ts.simulate(1000)
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
 
 ```
 
