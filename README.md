@@ -3,7 +3,7 @@ Synopsis:
 Kinetic model of transport through the NPC, used for comparison with e.g. FLIP experiments
 
 Authors:
-Kessem Klein
+Kessem Clein;
 Barak Raveh barak.raveh@mail.huji.ac.il
 
 Last changed after:
