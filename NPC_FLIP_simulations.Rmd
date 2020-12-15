@@ -5,7 +5,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.7.1
+      jupytext_version: 1.5.1
   kernelspec:
     display_name: Python 3
     language: python
@@ -912,14 +912,18 @@ x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmo
                                      param_range["rate_free_to_complex_per_sec"])
 plt.figure()
 ax=plt.gca()
-ax.imshow(ratios, vmin=1, vmax=8)
+plt.imshow(ratios, vmin=1, vmax=8)
 xlim= ax.get_xlim()
 ylim= ax.get_ylim()
 ax.set_xlim(xlim[1], xlim[0])
 ax.set_ylim(ylim[1], ylim[0])
+##### Contourf
 plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, ratios, vmin=1, vmax=8, levels=250)
+vmax=10
+plt.contourf(x_meshgrid, y_meshgrid, ratios, vmin=0.0, vmax=vmax, levels=range(vmax), extend='both')
 ax= plt.gca()
+#ax.set_xscale('log')
+#ax.set_yscale('log')
 ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
 ax.set_ylabel("active import rate")
 xlim= ax.get_xlim()
@@ -933,12 +937,10 @@ cb = plt.colorbar(label="N/C ratio")
 ticks = cb.get_ticks()
 cb.set_ticks(ticks)
 
-ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
-ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
+#ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
+#ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
 
 #cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
-print(["{:.1f}".format(xtick) for xtick in param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"]])
-print(param_range)
 
 
 ```
