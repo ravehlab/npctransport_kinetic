@@ -201,20 +201,20 @@ class TransportSimulation():
     n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
     self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
     # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
-    self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 100.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
-    self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 1000.0
-    self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 1000.0
-    self.fraction_complex_NPC_to_complex_N_C_per_sec= 0.1
+    self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 1000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
+    self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 30000.0
+    self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 30000.0
+    self.fraction_complex_NPC_to_complex_N_C_per_sec= 100.0
     self.rate_GDP_N_to_GTP_N_per_sec= 20.0
     self.rate_GTP_N_to_GDP_N_per_sec= 0.02
     self.rate_GTP_C_to_GDP_C_per_sec= 50.0
     self.rate_GTP_N_to_GTP_C_per_sec = 0.015
-    self.rate_GDP_C_to_GDP_N_per_sec = 2.5
-    self.rate_GDP_N_to_GDP_C_per_sec = 2.5 
+    self.rate_GDP_C_to_GDP_N_per_sec = 1.0
+    self.rate_GDP_N_to_GDP_C_per_sec = 1.0 
     self.rate_complex_C_to_free_C_per_sec = 0.01       
-    self.rate_free_C_to_complex_C_per_sec = 0.1
+    self.rate_free_to_complex_per_sec = 0.01 # assuming importins are not rate limiting in either cytoplasm aor nucleus and have identical concentration
     self.passive_competition_weight= 0.0 # a number between 0.0 and 1.0 quantifying the weight of competition # TODO: this could be a flag
-    self.max_passive_diffusion_rate_nmol_per_sec_per_M= 200 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
+    self.max_passive_diffusion_rate_nmol_per_sec_per_M= 2000 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
     self.bleach_volume_L_per_sec= 1.0e-15 # cytoplasmic cargo volume being bleached per second
     self.bleach_start_time_sec= np.inf # no bleaching by default
     self.set_params(**kwargs)
@@ -246,11 +246,11 @@ class TransportSimulation():
     self.nmol["freeU_N"]= 0 # (unlabeled)
     del self.nmol["cargo_N"] 
     # Ran in all:
-    self.set_RAN_distribution(Ran_cell_M= 1e-6, # total physiological concentration of Ran # TODO: check in the literature 
-                              parts_GTP_N=1000,
+    self.set_RAN_distribution(Ran_cell_M= 2e-6, # total physiological concentration of Ran # TODO: check in the literature 
+                              parts_GTP_N=10,
                               parts_GTP_C=1,
                               parts_GDP_N=1,
-                              parts_GDP_C=1000)
+                              parts_GDP_C=10)
  
   ##########################
   # Transitions calculators:
@@ -381,10 +381,11 @@ class TransportSimulation():
   def get_nmol_free_C_to_complex_C(self): # assume importin is not rate limiting
       """
       The number of the labeled molecules that bind to importin over time step dt_sec
+      in the cytoplasm
 
       Return: dictionary with number of molecules to add/subtract from each species
       """
-      f= self.rate_free_C_to_complex_C_per_sec \
+      f= self.rate_free_to_complex_per_sec \
         * self.dt_sec
       nL= f * self.nmol["freeL_C"]
       nU= f * self.nmol["freeU_C"]
@@ -394,6 +395,25 @@ class TransportSimulation():
                "complexL_C": +nL,               
                "freeU_C": -nU,
                "complexU_C": +nU}
+
+  def get_nmol_free_N_to_complex_N(self): # assume importin is not rate limiting
+      """
+      The number of the labeled molecules that bind to importin over time step dt_sec
+      in the nucleus
+
+      Return: dictionary with number of molecules to add/subtract from each species
+      """
+      f= self.rate_free_to_complex_per_sec \
+        * self.dt_sec
+      nL= f * self.nmol["freeL_N"]
+      nU= f * self.nmol["freeU_N"]
+      assert(nL <= self.nmol["freeL_N"])
+      assert(nU <= self.nmol["freeU_N"])
+      return  {"freeL_N": -nL,
+               "complexL_N": +nL,               
+               "freeU_N": -nU,
+               "complexU_N": +nU}
+
 
   def get_free_N_to_free_C(self): # passive
       """
@@ -538,6 +558,7 @@ class TransportSimulation():
         self.get_nmol_GDP_C_to_GDP_N(),
         self.get_nmol_complex_C_to_free_C(),
         self.get_nmol_free_C_to_complex_C(),
+        self.get_nmol_free_N_to_complex_N(),
         self.get_free_N_to_free_C(),
         self.get_nmol_complex_N_C_to_complex_NPC(),
         self.get_nmol_complex_NPC_to_complex_N_C(),
@@ -691,7 +712,7 @@ def time_series(sim_time_sec, attributes, n_skip=10, **kwargs):
   TODO
   '''
   ts= TransportSimulation(**kwargs)
-  ts.bleach_start_time_sec= 400.0
+#  ts.bleach_start_time_sec= 400.0
   ts.dt_sec= 1e-2
   n= int(np.ceil(sim_time_sec / ts.dt_sec))
   print(f"Running for n={n} time steps")
@@ -730,7 +751,7 @@ def plot_simulation_attributes(sim_time_sec, attributes, n_skip=10, log=True, ax
 ```
 
 ```{python id=lzmLU0YTw74H, jupyter={'source_hidden': True}}
-sim_time_sec= 500.0
+sim_time_sec= 300.0
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC', 'freeL_N', 'freeL_C', 'complexL_C', 'complexL_N']
 cargoU_attributes= ['complexU_NPC', 'freeU_N', 'freeU_C', 'complexU_C', 'complexU_N']
@@ -773,16 +794,26 @@ ax[2].legend()
 ## Map parameters phasespace of transport
 
 ```{python}
-a= np.ndarray((3,2))
-print(a)
-print(a[1,0])
+
+def get_tau_passive_diffusion(nmol_per_sec_per_M, volume_L):
+    ''' 
+    This utility function computes tau for one-sided passive diffusion
+    specified in number of molecules per second per M, given
+    the volume from which the passive diffusion leaves
+    '''
+    global N_A
+    gamma= nmol_per_sec_per_M/N_A/volume_L
+    tau= 1.0/gamma
+    return tau
+
+
 ```
 
 ```{python id=BhUdzBKH675g}
 def get_new_transport_simulation():
     ts= TransportSimulation( )        
     ts.set_params(rate_GDP_C_to_GDP_N_per_sec=7)   
-    ts.set_params(dt_sec=1e-3)
+    ts.set_params(dt_sec=2.5e-3)
     return ts
     
 def map_param_grid(nx= 4,
@@ -793,12 +824,12 @@ def map_param_grid(nx= 4,
                   ):
     print(f"nx={nx} ny={ny}")
     epsilon = 1e-9
-    param_range= {}
+    c_cargo_M= 50e-6 # TODO: fetch this from the simulation
     param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"] = \
-        np.logspace(-3, #0.001+epsilon, 
-                    np.log10(0.5), #-epsilon, 
-                    nx) / 50E-6 # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
-    param_range["rate_free_C_to_complex_C_per_sec"] = \
+        np.logspace(0, #0.001+epsilon, 
+                    5, #-epsilon, 
+                    nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
+    param_range["rate_free_to_complex_per_sec"] = \
         np.linspace(epsilon, 
                     0.5-epsilon, 
                     ny)
@@ -806,7 +837,7 @@ def map_param_grid(nx= 4,
     for key in param_range.keys():
         print("Param {:} default value is {:}".format(key, getattr(ts, key)))
     if not is_reset:
-        ts.set_params(rate_free_C_to_complex_C_per_sec = param_range["rate_free_C_to_complex_C_per_sec"][0],
+        ts.set_params(rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][0],
                   max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][0])
         ts.simulate(sim_time_sec= initial_equilibration_time, 
                     nskip_statistics= 200) #get to initial equilibrium, but don't waste time saving statistics
@@ -825,7 +856,7 @@ def map_param_grid(nx= 4,
             if is_reset:
                 ts= get_new_transport_simulation()
             ts.set_params(max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
-                          rate_free_C_to_complex_C_per_sec = param_range["rate_free_C_to_complex_C_per_sec"][j])        
+                          rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
             stats = ts.simulate(equilibration_time_sec)
             ts.reset_simulation_time()
             for nmol_type in ts.nmol.keys():
@@ -863,7 +894,7 @@ print(ratios)
 ```{python id=XQvFv3M-NYJN}
 import matplotlib.ticker as mtick
 x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
-                                     param_range["rate_free_C_to_complex_C_per_sec"])
+                                     param_range["rate_free_to_complex_per_sec"])
 plt.figure()
 ax=plt.gca()
 ax.imshow(ratios)
