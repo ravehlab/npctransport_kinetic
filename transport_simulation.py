@@ -33,6 +33,9 @@ def register_update(active=True):
         return func
     return wrapper
 
+def move_nmol(T_list, src, dst, nmol):
+    T_list.append((src, dst, nmol))
+
 @register_update_functions
 class TransportSimulation():
 
@@ -205,7 +208,7 @@ class TransportSimulation():
     ########################
 
     @register_update()
-    def get_nmol_complex_NPC_to_free_N(self):
+    def get_nmol_complex_NPC_to_free_N(self, T_list):
         """
         Number of labeled cargo molecules released from the NPC to the nucleus over a self.dt_sec time step
         (Note: it is assumed each undocking leads to export of a single RanGTP molecule)
@@ -223,16 +226,23 @@ class TransportSimulation():
         imported = n*(1-self.nmol["complex_NPC_C2N_ratio"])
 
         assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_NPC"] and nU <= self.nmol["complexU_NPC"]            
-        return {"complexL_NPC": -nL,
-                "freeL_N": +nL,
-                "complexU_NPC": -nU,
-                "freeU_N": +nU,
-                "GTP_N": -n,
-                "GTP_C": +n}
+
+        move_nmol(T_list,
+                   src="complexL_NPC",\
+                   dst="freeL_N",\
+                   nmol=nL)
+        move_nmol(T_list,
+                   src="complexU_NPC",\
+                   dst="freeU_N",\
+                   nmol=nU)
+        move_nmol(T_list,
+                   src="GTP_N",\
+                   dst="GTP_C",\
+                   nmol=n)
 
 
     @register_update()
-    def get_nmol_complex_N_to_free_N(self):
+    def get_nmol_complex_N_to_free_N(self, T_list):
         """
         Number of labeled cargo molecules that disassemble in the nucleus over a self.dt_sec time step
         Note: it is assumed each undocking leads to export of a single RanGTP molecule instantaneously
@@ -249,16 +259,21 @@ class TransportSimulation():
         n= nL+nU                      
         #     print("n {} GTP_N {} complex_N {}".format(n, self.nmol["GTP_N"], self.nmol["complex_N"]))
         assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_N"] and nU <= self.nmol["complexU_N"]            
-        return {"complexL_N": -nL,
-                "freeL_N": +nL,
-                "complexU_N": -nU,
-                "freeU_N": +nU,
-                "GTP_N": -n,
-                "GTP_C": +n}
-
+        move_nmol(T_list,
+                   src="complexL_N",\
+                   dst="freeL_N",\
+                   nmol=nL)
+        move_nmol(T_list,
+                   src="complexU_N",\
+                   dst="freeU_N",\
+                   nmol=nU)
+        move_nmol(T_list,
+                   src="GTP_N",\
+                   dst="GTP_C",\
+                   nmol=n)
 
     @register_update()
-    def get_nmol_GDP_N_to_GTP_N(self):
+    def get_nmol_GDP_N_to_GTP_N(self, T_list):
         """
         Number of GDP molecules in the nucleus converted to GTP
 
@@ -271,11 +286,13 @@ class TransportSimulation():
             * self.nmol["GTP_N"] \
             * self.dt_sec
         n= n1-n2
-        return {"GDP_N": -n, 
-                "GTP_N": +n}
+        move_nmol(T_list,
+                   src="GDP_N",\
+                   dst="GTP_N",\
+                   nmol=n)
 
     @register_update()
-    def get_nmol_GTP_C_to_GDP_C(self):
+    def get_nmol_GTP_C_to_GDP_C(self, T_list):
         """
         Number of GTP molecules in the cytoplasm converted to GDP
 
@@ -284,11 +301,13 @@ class TransportSimulation():
         n= self.rate_GTP_C_to_GDP_C_per_sec \
             * self.nmol["GTP_C"] \
             * self.dt_sec
-        return {"GTP_C": -n, 
-                "GDP_C": +n}
+        move_nmol(T_list,
+                   src="GTP_C",\
+                   dst="GDP_C",\
+                   nmol=n)
 
     @register_update()
-    def get_nmol_GTP_N_to_GTP_C(self):
+    def get_nmol_GTP_N_to_GTP_C(self, T_list):
         """
         Number of GTP molecules exported from the nucleus
 
@@ -298,11 +317,13 @@ class TransportSimulation():
         n= self.rate_GTP_N_to_GTP_C_per_sec \
             * self.nmol["GTP_N"] \
             * self.dt_sec
-        return {"GTP_N": -n,
-                "GTP_C": +n}
+        move_nmol(T_list,
+                   src="GTP_N",\
+                   dst="GTP_C",\
+                   nmol=n)
 
     @register_update()
-    def get_nmol_GDP_C_to_GDP_N(self):
+    def get_nmol_GDP_C_to_GDP_N(self, T_list):
         """
         Number of GDP molecules imported to the nucleus
 
@@ -315,11 +336,13 @@ class TransportSimulation():
             * self.nmol["GDP_N"] \
             * self.dt_sec
         n= n1-n2
-        return {"GDP_C": -n,
-                "GDP_N": +n}
+        move_nmol(T_list,
+                   src="GDP_C",\
+                   dst="GDP_N",\
+                   nmol=n)
 
     @register_update()
-    def get_nmol_complex_C_to_free_C(self):
+    def get_nmol_complex_C_to_free_C(self, T_list):
         """
         The number of cargo-importin complexes that unbind importin over time step dt_sec
 
@@ -331,13 +354,17 @@ class TransportSimulation():
         nU= f * self.nmol["complexU_C"]
         assert(nL <= self.nmol["complexL_C"])
         assert(nU <= self.nmol["complexU_C"])
-        return  {"complexL_C": -nL,
-                 "freeL_C": +nL,               
-                 "complexU_C": -nU,
-                 "freeU_C": +nU}
+        move_nmol(T_list,
+                   src="complexL_C",\
+                   dst="freeL_C",\
+                   nmol=nL)
+        move_nmol(T_list,
+                   src="complexU_C",\
+                   dst="freeU_C",\
+                   nmol=nU)
 
     @register_update()
-    def get_nmol_free_C_to_complex_C(self): # assume importin is not rate limiting
+    def get_nmol_free_C_to_complex_C(self, T_list): # assume importin is not rate limiting
         """
         The number of the labeled molecules that bind to importin over time step dt_sec
         in the cytoplasm
@@ -350,13 +377,17 @@ class TransportSimulation():
         nU= f * self.nmol["freeU_C"]
         assert(nL <= self.nmol["freeL_C"])
         assert(nU <= self.nmol["freeU_C"])
-        return  {"freeL_C": -nL,
-                 "complexL_C": +nL,               
-                 "freeU_C": -nU,
-                 "complexU_C": +nU}
+        move_nmol(T_list,
+                   src="freeL_C",\
+                   dst="complexL_C",\
+                   nmol=nL)
+        move_nmol(T_list,
+                   src="freeU_C",\
+                   dst="complexU_C",\
+                   nmol=nU)
 
     @register_update()
-    def get_nmol_free_N_to_complex_N(self): # assume importin is not rate limiting
+    def get_nmol_free_N_to_complex_N(self, T_list): # assume importin is not rate limiting
         """
         The number of the labeled molecules that bind to importin over time step dt_sec
         in the nucleus
@@ -369,14 +400,18 @@ class TransportSimulation():
         nU= f * self.nmol["freeU_N"]
         assert(nL <= self.nmol["freeL_N"])
         assert(nU <= self.nmol["freeU_N"])
-        return  {"freeL_N": -nL,
-                 "complexL_N": +nL,               
-                 "freeU_N": -nU,
-                "complexU_N": +nU}
+        move_nmol(T_list,
+                   src="freeL_N",\
+                   dst="complexL_N",\
+                   nmol=nL)
+        move_nmol(T_list,
+                   src="freeU_N",\
+                   dst="complexU_N",\
+                   nmol=nU)
 
 
     @register_update()
-    def get_free_N_to_free_C(self): # passive
+    def get_free_N_to_free_C(self, T_list): # passive
         """
         Computes the net number of unbound molecules in the nucleus that passively export 
         to the cytoplasm per second (net = export - import)
@@ -395,13 +430,17 @@ class TransportSimulation():
             * self.dt_sec
         nL= f * self.get_concentration_M("freeL_N")  - f * self.get_concentration_M("freeL_C")
         nU= f * self.get_concentration_M("freeU_N")  - f * self.get_concentration_M("freeU_C")      
-        return {"freeL_N": -nL,
-                "freeL_C": +nL,
-                "freeU_N": -nU,
-                "freeU_C": +nU}
+        move_nmol(T_list,
+                   src="freeL_N",\
+                   dst="freeL_C",\
+                   nmol=nL)
+        move_nmol(T_list,
+                   src="freeU_N",\
+                   dst="freeU_C",\
+                   nmol=nU)
 
     @register_update()
-    def get_nmol_complex_N_C_to_complex_NPC(self):
+    def get_nmol_complex_N_C_to_complex_NPC(self, T_list):
         """
         Computes the number of molecules that bind to the NPC from the nucleus
         over dt_sec time step (These will all be bound to importin)
@@ -435,15 +474,25 @@ class TransportSimulation():
             assert(assert2)
             assert(assert3)
             assert(assert1 and assert2 and assert3)
-        return {"complexL_N": -nL_N,
-                "complexL_C": -nL_C,
-                "complexL_NPC": +nL_N+nL_C,
-                "complexU_N": -nU_N,
-                "complexU_C": -nU_C,
-                "complexU_NPC": +nU_N+nU_C}
+        move_nmol(T_list,
+                   src="complexL_N",\
+                   dst="complexL_NPC",\
+                   nmol=nL_N)
+        move_nmol(T_list,
+                   src="complexL_C",\
+                   dst="complexL_NPC",\
+                   nmol=nL_C)
+        move_nmol(T_list,
+                   src="complexU_N",\
+                   dst="complexU_NPC",\
+                   nmol=nU_N)
+        move_nmol(T_list,
+                   src="complexU_C",\
+                   dst="complexU_NPC",\
+                   nmol=nU_C)
 
     @register_update()
-    def get_nmol_complex_NPC_to_complex_N_C(self):
+    def get_nmol_complex_NPC_to_complex_N_C(self, T_list):
         """
         Number of complexed cargo-importin released from the NPC to the nucleus and cytoplasm 
         (assumed 50-50 between nucleus and cytoplasm)
@@ -454,15 +503,25 @@ class TransportSimulation():
             * self.dt_sec # fractions are fine (conceptually, a random variable)
         nL= f * self.nmol["complexL_NPC"] 
         nU= f * self.nmol["complexU_NPC"] 
-        return {"complexL_NPC": -nL,
-            "complexL_N": +0.5*nL,
-            "complexL_C": +0.5*nL,
-            "complexU_NPC": -nU,
-            "complexU_N": +0.5*nU,
-            "complexU_C": +0.5*nU}
+        move_nmol(T_list,
+                   src="complexL_NPC",\
+                   dst="complexL_N",\
+                   nmol=0.5*nL)
+        move_nmol(T_list,
+                   src="complexL_NPC",\
+                   dst="complexL_C",\
+                   nmol=0.5*nL)
+        move_nmol(T_list,
+                   src="complexU_NPC",\
+                   dst="complexU_N",\
+                   nmol=0.5*nU)
+        move_nmol(T_list,
+                   src="complexU_NPC",\
+                   dst="complexU_C",\
+                   nmol=0.5*nU)
 
     @register_update()
-    def get_nmol_cargo_bleached(self):
+    def get_nmol_cargo_bleached(self, T_list):
         '''
         Number of bleached molecules over time step in cytoplasm (both free and complexed)
 
@@ -482,10 +541,14 @@ class TransportSimulation():
         #print(self.nmol["freeL_C"], f)
         assert(n_free_C <= self.nmol["freeL_C"])
         assert(n_complex_C <= self.nmol["complexL_C"])
-        return {"freeL_C": -n_free_C,
-                "complexL_C": -n_complex_C,
-                "freeU_C": +n_free_C,
-                "complexU_C": +n_complex_C}
+        move_nmol(T_list,
+                   src="freeL_C",\
+                   dst="freeU_C",\
+                   nmol=n_free_C)
+        move_nmol(T_list,
+                   src="complexL_C",\
+                   dst="complexU_C",\
+                   nmol=n_complex_C)
 
     ##########################
     # Individual update rules:
@@ -493,18 +556,24 @@ class TransportSimulation():
 
     def get_nmol_T_summary(self, T_list):
         '''
-        Summarize all transition by summing over a list of dictionaries of transitions
+        Summarize all transition by summing over a list of tuples of transitions
 
-        @param T_list a list of dictionaries, each mapping from a molecular species to the change in its counts
+        @param T_list a list of tuples (src, dst, nmol), each representing a transfer of nmol 
+                      molecules from a molecular species src to the molecular species dst
         @return a dictionary mapping from molecular species to total change in counts
         '''
         T= {}
-        for cur_T in T_list:
-            for key, value in cur_T.items():
-                if key in T:
-                    T[key] += value
-                else:
-                    T[key] = value
+        for src, dst, nmol in T_list:
+            if src in T:
+                T[src] -= nmol
+            else:
+                T[src] = -nmol
+
+            if dst in T:
+                T[dst] += nmol
+            else:
+                T[dst] = nmol
+
         return T
 
     def do_one_time_step(self):
@@ -512,7 +581,9 @@ class TransportSimulation():
         Update all state variables for the nucleus over a single time step
         '''
         # Compute transitions:
-        T_list= [update_rule(self) for update_rule in self._update_funcs]
+        T_list = []
+        for update_rule in self._update_funcs:
+            update_rule(self, T_list)
         T= self.get_nmol_T_summary(T_list)
 
         # Update transitions:
