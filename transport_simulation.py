@@ -181,7 +181,7 @@ class TransportSimulation():
         self.nmol["complexL_NPC"]= 1e0 # number of cargo-importin complexes docked to the NPC (labeled)
         self.nmol["complexU_NPC"]= 0 # (unlabeled)
         # NPC directionality:
-        self.nmol["complex_NPC_C2N_ratio"]= 1.0 # fraction of complexes in the NPC originating from the Cytoplasm
+        self.NPC_N2C_ratio = 0.5 # ratio of cargo in the NPC that docked from the nucleus
         # Cytoplasm:
         self.set_concentration_M("cargo_C", 50e-6)  # Nuclear concentration of labeled cargo in M
         self.nmol["complexL_C"]=  self.get_nmol("cargo_C")*0.25 # number of cargo-importin complexes in cytoplasm (labeled)
@@ -196,6 +196,11 @@ class TransportSimulation():
         self.nmol["complexU_N"]= 0 # (unlabeled)
         self.nmol["freeU_N"]= 0 # (unlabeled)
         del self.nmol["cargo_N"] 
+        # import export per dt_sec
+        self.nmol["active_import"] = 0
+        self.nmol["active_export"] = 0
+        self.nmol["passive_import"] = 0
+        self.nmol["passive_export"] = 0
         # Ran in all:
         self.set_RAN_distribution(Ran_cell_M= 2e-5, # total physiological concentration of Ran # TODO: check in the literature 
                                   parts_GTP_N=1000,
@@ -222,8 +227,6 @@ class TransportSimulation():
         nL= f * self.nmol["complexL_NPC"] 
         nU= f * self.nmol["complexU_NPC"] 
         n= nL+nU
-
-        imported = n*(1-self.nmol["complex_NPC_C2N_ratio"])
 
         assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_NPC"] and nU <= self.nmol["complexU_NPC"]            
 
@@ -576,15 +579,69 @@ class TransportSimulation():
 
         return T
 
+    def get_import_export_summary(self, T_list):
+        '''
+        Compute a summary of the gross number of cargo molecules imported and exported.
+        Should be called BEFORE transitions are updated
+        '''
+        active_import = 0
+        passive_import = 0
+        active_export = 0
+        passive_export = 0
+        npc_docked_N = 0
+        npc_docked_C = 0
+        npc_undocked = 0
+
+        for src, dst, nmol in T_list:
+            # we aren't interested in Ran
+            if "GTP" in src or "GDP" in src:
+                continue
+
+            # active import/export:
+            if "NPC" in src:
+                npc_undocked += nmol
+                if "N" in dst:
+                    active_import += (1-self.NPC_N2C_ratio) * nmol
+                else:
+                    active_export += self.NPC_N2C_ratio * nmol
+            
+            #passive export
+            elif "N" in src and "C" in dst:
+                passive_export += nmol
+            #passive import
+            elif "C" in src and "N" in dst:
+                passive_import += nmol
+            
+            # for NPC_N2C_ratio
+            if "NPC" in dst:
+                if "N" in src:
+                    npc_docked_N += nmol
+                elif "C" in src:
+                    npc_docked_C += nmol
+        
+        # update NPC_N2C_ratio
+        total_NPC = sum([self.nmol[key] for key in self.nmol if "NPC" in key])
+        total_NPC -= npc_undocked
+        enumerator = self.NPC_N2C_ratio*total_NPC + npc_docked_N
+        denominator = total_NPC + npc_docked_C + npc_docked_N
+        self.NPC_N2C_ratio = enumerator/denominator
+        
+        self.nmol["active_import"] = active_import
+        self.nmol["active_export"] = active_export
+        self.nmol["passive_import"] = passive_import
+        self.nmol["passive_export"] = passive_export
+
+
     def do_one_time_step(self):
         '''
-        Update all state variables for the nucleus over a single time step
+        Update all state variables over a single time step
         '''
         # Compute transitions:
         T_list = []
         for update_rule in self._update_funcs:
             update_rule(self, T_list)
         T= self.get_nmol_T_summary(T_list)
+        self.get_import_export_summary(T_list)
 
         # Update transitions:
         for key, value in T.items():
