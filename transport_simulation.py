@@ -33,7 +33,7 @@ def register_update(active=True):
         return func
     return wrapper
 
-def move_nmol(T_list, src, dst, nmol):
+def register_move_nmol(T_list, src, dst, nmol):
     T_list.append((src, dst, nmol))
 
 @register_update_functions
@@ -141,7 +141,8 @@ class TransportSimulation():
         Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the percent of 
         molecules that passively diffuse per second is the argument 'rate'
         '''
-        self.max_passive_diffusion_rate_nmol_per_sec_per_M = rate*N_A
+        self.max_passive_diffusion_rate_nmol_per_sec_per_M = rate*N_A*self.v_N_L
+
     def set_params(self, **kwargs):
         for param, value in kwargs.items():
             assert hasattr(self, param)
@@ -233,15 +234,15 @@ class TransportSimulation():
 
         assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_NPC"] and nU <= self.nmol["complexU_NPC"]            
 
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_NPC",\
                    dst="freeL_N",\
                    nmol=nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_NPC",\
                    dst="freeU_N",\
                    nmol=nU)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="GTP_N",\
                    dst="GTP_C",\
                    nmol=n)
@@ -265,15 +266,15 @@ class TransportSimulation():
         n= nL+nU                      
         #     print("n {} GTP_N {} complex_N {}".format(n, self.nmol["GTP_N"], self.nmol["complex_N"]))
         assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_N"] and nU <= self.nmol["complexU_N"]            
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_N",\
                    dst="freeL_N",\
                    nmol=nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_N",\
                    dst="freeU_N",\
                    nmol=nU)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="GTP_N",\
                    dst="GTP_C",\
                    nmol=n)
@@ -292,7 +293,7 @@ class TransportSimulation():
             * self.nmol["GTP_N"] \
             * self.dt_sec
         n= n1-n2
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="GDP_N",\
                    dst="GTP_N",\
                    nmol=n)
@@ -307,7 +308,7 @@ class TransportSimulation():
         n= self.rate_GTP_C_to_GDP_C_per_sec \
             * self.nmol["GTP_C"] \
             * self.dt_sec
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="GTP_C",\
                    dst="GDP_C",\
                    nmol=n)
@@ -323,7 +324,7 @@ class TransportSimulation():
         n= self.rate_GTP_N_to_GTP_C_per_sec \
             * self.nmol["GTP_N"] \
             * self.dt_sec
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="GTP_N",\
                    dst="GTP_C",\
                    nmol=n)
@@ -342,7 +343,7 @@ class TransportSimulation():
             * self.nmol["GDP_N"] \
             * self.dt_sec
         n= n1-n2
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="GDP_C",\
                    dst="GDP_N",\
                    nmol=n)
@@ -360,11 +361,11 @@ class TransportSimulation():
         nU= f * self.nmol["complexU_C"]
         assert(nL <= self.nmol["complexL_C"])
         assert(nU <= self.nmol["complexU_C"])
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_C",\
                    dst="freeL_C",\
                    nmol=nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_C",\
                    dst="freeU_C",\
                    nmol=nU)
@@ -383,11 +384,11 @@ class TransportSimulation():
         nU= f * self.nmol["freeU_C"]
         assert(nL <= self.nmol["freeL_C"])
         assert(nU <= self.nmol["freeU_C"])
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeL_C",\
                    dst="complexL_C",\
                    nmol=nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeU_C",\
                    dst="complexU_C",\
                    nmol=nU)
@@ -406,11 +407,11 @@ class TransportSimulation():
         nU= f * self.nmol["freeU_N"]
         assert(nL <= self.nmol["freeL_N"])
         assert(nU <= self.nmol["freeU_N"])
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeL_N",\
                    dst="complexL_N",\
                    nmol=nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeU_N",\
                    dst="complexU_N",\
                    nmol=nU)
@@ -440,19 +441,19 @@ class TransportSimulation():
         nU_export = f * self.get_concentration_M("freeU_N")  
         nU_import = f * self.get_concentration_M("freeU_C")
         
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeL_N",\
                    dst="freeL_C",\
                    nmol=nL_export)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeU_N",\
                    dst="freeU_C",\
                    nmol=nU_export)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeL_C",\
-                   dst="freeL_C",\
+                   dst="freeL_N",\
                    nmol=nL_import)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeU_C",\
                    dst="freeU_N",\
                    nmol=nU_import)
@@ -492,19 +493,19 @@ class TransportSimulation():
             assert(assert2)
             assert(assert3)
             assert(assert1 and assert2 and assert3)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_N",\
                    dst="complexL_NPC",\
                    nmol=nL_N)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_C",\
                    dst="complexL_NPC",\
                    nmol=nL_C)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_N",\
                    dst="complexU_NPC",\
                    nmol=nU_N)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_C",\
                    dst="complexU_NPC",\
                    nmol=nU_C)
@@ -521,19 +522,19 @@ class TransportSimulation():
             * self.dt_sec # fractions are fine (conceptually, a random variable)
         nL= f * self.nmol["complexL_NPC"] 
         nU= f * self.nmol["complexU_NPC"] 
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_NPC",\
                    dst="complexL_N",\
                    nmol=0.5*nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_NPC",\
                    dst="complexL_C",\
                    nmol=0.5*nL)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_NPC",\
                    dst="complexU_N",\
                    nmol=0.5*nU)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexU_NPC",\
                    dst="complexU_C",\
                    nmol=0.5*nU)
@@ -559,11 +560,11 @@ class TransportSimulation():
         #print(self.nmol["freeL_C"], f)
         assert(n_free_C <= self.nmol["freeL_C"])
         assert(n_complex_C <= self.nmol["complexL_C"])
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="freeL_C",\
                    dst="freeU_C",\
                    nmol=n_free_C)
-        move_nmol(T_list,
+        register_move_nmol(T_list,
                    src="complexL_C",\
                    dst="complexU_C",\
                    nmol=n_complex_C)
@@ -613,12 +614,19 @@ class TransportSimulation():
                 continue
 
             # active import/export:
-            if "NPC" in src:
+            if "NPC" in src and not "NPC" in dst:
                 npc_undocked += nmol
                 if "N" in dst:
                     active_import += (1-self.NPC_N2C_ratio) * nmol
                 else:
                     active_export += self.NPC_N2C_ratio * nmol
+
+            # for NPC_N2C_ratio
+            elif "NPC" in dst and not "NPC" in src:
+                if "N" in src:
+                    npc_docked_N += nmol
+                elif "C" in src:
+                    npc_docked_C += nmol
             
             #passive export
             elif "N" in src and "C" in dst:
@@ -627,12 +635,6 @@ class TransportSimulation():
             elif "C" in src and "N" in dst:
                 passive_import += nmol
             
-            # for NPC_N2C_ratio
-            if "NPC" in dst:
-                if "N" in src:
-                    npc_docked_N += nmol
-                elif "C" in src:
-                    npc_docked_C += nmol
         
         # update NPC_N2C_ratio
         total_NPC = sum([self.nmol[key] for key in self.nmol if "NPC" in key])
