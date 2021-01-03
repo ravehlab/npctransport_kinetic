@@ -136,7 +136,12 @@ class TransportSimulation():
     ###################
     # Consturctor (and init functions)
     ###################
-
+    def set_passive_diffusion_rate_per_sec(self, rate):
+        '''
+        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the percent of 
+        molecules that passively diffuse per second is the argument 'rate'
+        '''
+        self.max_passive_diffusion_rate_nmol_per_sec_per_M = rate*N_A
     def set_params(self, **kwargs):
         for param, value in kwargs.items():
             assert hasattr(self, param)
@@ -197,10 +202,8 @@ class TransportSimulation():
         self.nmol["freeU_N"]= 0 # (unlabeled)
         del self.nmol["cargo_N"] 
         # import export per dt_sec
-        self.nmol["active_import"] = 0
-        self.nmol["active_export"] = 0
-        self.nmol["passive_import"] = 0
-        self.nmol["passive_export"] = 0
+        self.nmol["import"] = 0
+        self.nmol["export"] = 0
         # Ran in all:
         self.set_RAN_distribution(Ran_cell_M= 2e-5, # total physiological concentration of Ran # TODO: check in the literature 
                                   parts_GTP_N=1000,
@@ -431,16 +434,28 @@ class TransportSimulation():
         f= self.max_passive_diffusion_rate_nmol_per_sec_per_M \
             * competition_multiplier \
             * self.dt_sec
-        nL= f * self.get_concentration_M("freeL_N")  - f * self.get_concentration_M("freeL_C")
-        nU= f * self.get_concentration_M("freeU_N")  - f * self.get_concentration_M("freeU_C")      
+
+        nL_export = f * self.get_concentration_M("freeL_N")  
+        nL_import = f * self.get_concentration_M("freeL_C")
+        nU_export = f * self.get_concentration_M("freeU_N")  
+        nU_import = f * self.get_concentration_M("freeU_C")
+        
         move_nmol(T_list,
                    src="freeL_N",\
                    dst="freeL_C",\
-                   nmol=nL)
+                   nmol=nL_export)
         move_nmol(T_list,
                    src="freeU_N",\
                    dst="freeU_C",\
-                   nmol=nU)
+                   nmol=nU_export)
+        move_nmol(T_list,
+                   src="freeL_C",\
+                   dst="freeL_C",\
+                   nmol=nL_import)
+        move_nmol(T_list,
+                   src="freeU_C",\
+                   dst="freeU_N",\
+                   nmol=nU_import)
 
     @register_update()
     def get_nmol_complex_N_C_to_complex_NPC(self, T_list):
@@ -626,10 +641,14 @@ class TransportSimulation():
         denominator = total_NPC + npc_docked_C + npc_docked_N
         self.NPC_N2C_ratio = enumerator/denominator
         
-        self.nmol["active_import"] = active_import
-        self.nmol["active_export"] = active_export
-        self.nmol["passive_import"] = passive_import
-        self.nmol["passive_export"] = passive_export
+        total_N = sum([self.nmol[key] for key in self.nmol if "N" in key
+                                                            and not "NPC" in key
+                                                            and not "G" in key])
+        total_C = sum([self.nmol[key] for key in self.nmol if "C" in key
+                                                            and not "NPC" in key
+                                                            and not "G" in key])
+        self.nmol["import"] = (active_import + passive_import)/(total_N*self.dt_sec)
+        self.nmol["export"] = (active_export + passive_export)/(total_C*self.dt_sec)
 
 
     def do_one_time_step(self):
@@ -696,3 +715,4 @@ class TransportSimulation():
                self.nmol["complexU_NPC"]
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
+
