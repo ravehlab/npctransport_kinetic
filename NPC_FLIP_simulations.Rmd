@@ -65,7 +65,7 @@ def time_series(sim_time_sec, attributes, n_skip=10, **kwargs):
   '''
   ts= TransportSimulation(**kwargs)
   ts.bleach_start_time_sec= 100.0
-  ts.dt_sec= 5e-5
+  ts.dt_sec= 1e-3
   n= int(np.ceil(sim_time_sec / ts.dt_sec))
   print(f"Running for n={n} time steps")
   n_frames= int(np.floor(n/n_skip)) + 1 
@@ -181,8 +181,10 @@ def get_new_transport_simulation(**kwargs):
 ```{python id="BhUdzBKH675g"}
 import multiprocessing
 
-def mp_do_simulation(param_range, i, j, equilibration_time_sec):
-    my_ts= get_new_transport_simulation(Ran_cell_M=12.5e-6)
+def mp_do_simulation(param_range, i, j, 
+                     equilibration_time_sec):
+    init_params= {"Ran_cell_M": 20e-6}
+    my_ts= get_new_transport_simulation(**init_params)
     my_ts.set_params(max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
               fraction_complex_NPC_traverse_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
     stats = my_ts.simulate(equilibration_time_sec)   
@@ -266,10 +268,10 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-param_range, stats_grids= map_param_grid_parallel(nx= 6,
+param_range, stats_grids= map_param_grid_parallel(nx= 4,
                                         ny= 10,
 #                                       is_reset=True, 
-                                        equilibration_time_sec= 50.0,
+                                        equilibration_time_sec= 150.0,
                                         n_processors=6)
 ratios= get_N_to_C_ratios(stats_grids, 
                           v_N_L= ts.get_v_N_L(), 
@@ -284,7 +286,8 @@ def get_import_export_ratios(stats_grids):
     ratios= import_rate/export_rate
     return ratios
 
-ratios_import_export= get_import_export_ratios(stats_grids)
+if False:
+    ratios_import_export= get_import_export_ratios(stats_grids)
 ```
 
 ```{python id="XQvFv3M-NYJN"}
