@@ -156,6 +156,7 @@ class TransportSimulation():
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
         self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
+        self.fraction_complex_NPC_traverse_per_sec = 0.5 # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
         self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
@@ -184,12 +185,14 @@ class TransportSimulation():
         self.v_C_L= 10e-15 # Cytoplsmic volume in L
         self.v_N_L= 3e-15 # Nuclear volume in L
         # NPC:
-        self.nmol["complexL_NPC_N"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
-        self.nmol["complexL_NPC_C"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
-        self.nmol["complexU_NPC_N"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
-        self.nmol["complexU_NPC_C"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
-        # NPC directionality:
-        self.NPC_N2C_ratio = 0.5 # ratio of cargo in the NPC that docked from the nucleus
+        self.nmol["complexL_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
+        self.nmol["complexL_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
+        self.nmol["complexU_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
+        self.nmol["complexU_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
+        self.nmol["complexL_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
+        self.nmol["complexL_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
+        self.nmol["complexU_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
+        self.nmol["complexU_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
         # Cytoplasm:
         self.set_concentration_M("cargo_C", 50e-6)  # Nuclear concentration of labeled cargo in M
         self.nmol["complexL_C"]=  self.get_nmol("cargo_C")*0.25 # number of cargo-importin complexes in cytoplasm (labeled)
@@ -205,8 +208,10 @@ class TransportSimulation():
         self.nmol["freeU_N"]= 0 # (unlabeled)
         del self.nmol["cargo_N"] 
         # import export per dt_sec
-        self.nmol["import"] = 0
-        self.nmol["export"] = 0
+        self.nmol["import_L"] = 0
+        self.nmol["export_L"] = 0
+        self.nmol["import_U"] = 0
+        self.nmol["export_U"] = 0
         # Ran in all:
         self.set_RAN_distribution(Ran_cell_M= 2e-5, # total physiological concentration of Ran # TODO: check in the literature 
                                   parts_GTP_N=1000,
@@ -230,25 +235,15 @@ class TransportSimulation():
         f= self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec  \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
-        nL= f * self.nmol["complexL_NPC_N"] 
-        nU= f * self.nmol["complexU_NPC_N"] 
-        n= nL+nU
-
-        assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_NPC"] and nU <= self.nmol["complexU_NPC"]            
-
-        register_move_nmol(T_list,
-                   src="complexL_NPC_N",\
-                   dst="freeL_N",\
-                   nmol=nL)
-        register_move_nmol(T_list,
-                   src="complexU_NPC_N",\
-                   dst="freeU_N",\
-                   nmol=nU)
-        register_move_nmol(T_list,
-                   src="GTP_N",\
-                   dst="GTP_C",\
-                   nmol=n)
-
+        for suffix in ['import', 'export']:
+            for label in ['L', 'U']:
+                src = f"complex{label}_NPC_N_{suffix}"
+                dst = f"free{label}_N"
+                n= f * self.nmol[src] 
+                register_move_nmol(T_list,
+                           src=src,\
+                           dst=dst,\
+                           nmol=n)
 
     @register_update()
     def get_nmol_complex_N_to_free_N(self, T_list):
@@ -431,9 +426,8 @@ class TransportSimulation():
         # - we can change it in future based on theoretical equations of passive diffusion
         """
         # Comment: competition is assumed to have zero effect at this time
-        fraction_bound_dock_sites_NPC= (self.nmol["complexL_NPC_N"] + self.nmol["complexU_NPC_N"] +\
-                                        self.nmol["complexL_NPC_C"] + self.nmol["complexU_NPC_C"]) \
-                                        / self.NPC_dock_sites
+        bound_dock_sites = sum([self.nmol[key] for key in self.nmol if "NPC" in key])
+        fraction_bound_dock_sites_NPC= bound_dock_sites/self.NPC_dock_sites
         competition_multiplier= 1.0 - self.passive_competition_weight * fraction_bound_dock_sites_NPC
         f= self.max_passive_diffusion_rate_nmol_per_sec_per_M \
             * competition_multiplier \
@@ -469,7 +463,8 @@ class TransportSimulation():
 
         Return: dictionary with number of molecules to add/subtract from each species
         """
-        nmol_free_sites_NPC = (self.NPC_dock_sites - self.nmol["complexL_NPC_C"] - self.nmol["complexU_NPC_C"])
+        bound_dock_sites = sum([self.nmol[key] for key in self.nmol if "NPC" in key])
+        nmol_free_sites_NPC = (self.NPC_dock_sites - bound_dock_sites)
         f = nmol_free_sites_NPC \
             * self.rate_complex_to_NPC_per_free_site_per_sec_per_M \
             * self.dt_sec
@@ -498,19 +493,19 @@ class TransportSimulation():
             assert(assert1 and assert2 and assert3)
         register_move_nmol(T_list,
                    src="complexL_N",\
-                   dst="complexL_NPC_N",\
+                   dst="complexL_NPC_N_export",\
                    nmol=nL_N)
         register_move_nmol(T_list,
                    src="complexL_C",\
-                   dst="complexL_NPC_C",\
+                   dst="complexL_NPC_C_import",\
                    nmol=nL_C)
         register_move_nmol(T_list,
                    src="complexU_N",\
-                   dst="complexU_NPC_N",\
+                   dst="complexU_NPC_N_export",\
                    nmol=nU_N)
         register_move_nmol(T_list,
                    src="complexU_C",\
-                   dst="complexU_NPC_C",\
+                   dst="complexU_NPC_C_import",\
                    nmol=nU_C)
 
     @register_update()
@@ -520,27 +515,17 @@ class TransportSimulation():
         """
         f = self.fraction_complex_NPC_traverse_per_sec * self.dt_sec
 
-        nL_N= f * self.nmol["complexL_NPC_N"] 
-        nU_N= f * self.nmol["complexU_NPC_N"] 
-        nL_C= f * self.nmol["complexL_NPC_C"] 
-        nU_C= f * self.nmol["complexU_NPC_C"] 
-
-        register_move_nmol(T_list,
-                   src="complexL_NPC_N",\
-                   dst="complexL_NPC_C",\
-                   nmol=nL_N)
-        register_move_nmol(T_list,
-                   src="complexU_NPC_N",\
-                   dst="complexU_NPC_C",\
-                   nmol=nU_N)
-        register_move_nmol(T_list,
-                   src="complexL_NPC_C",\
-                   dst="complexL_NPC_N",\
-                   nmol=nL_C)
-        register_move_nmol(T_list,
-                   src="complexU_NPC_C",\
-                   dst="complexU_NPC_N",\
-                   nmol=nU_C)
+        for label in ["L", '"U"']:
+            for src in ["N", "C"]:
+                dst= "C" if (src=="N") else "N"
+                for suffix in ["import", "export"]:
+                    tag_src= f"complex{label}_NPC_{src}_{suffix}"
+                    tag_dst= f"complex{label}_NPC_{dst}_{suffix}"
+                    n= f * self.nmol[tag_src]
+                    register_move_nmol(T_list,
+                                      src= tag_src,
+                                      dst=  tag_dst,
+                                      nmol= n)
 
     @register_update()
     def get_nmol_complex_NPC_to_complex_N_C(self, T_list):
@@ -552,26 +537,17 @@ class TransportSimulation():
         """
         f= self.fraction_complex_NPC_to_complex_N_C_per_sec \
             * self.dt_sec # fractions are fine (conceptually, a random variable)
-        nL_N= f * self.nmol["complexL_NPC_N"] 
-        nL_C= f * self.nmol["complexL_NPC_C"] 
-        nU_N= f * self.nmol["complexU_NPC_N"] 
-        nU_C= f * self.nmol["complexU_NPC_C"] 
-        register_move_nmol(T_list,
-                   src="complexL_NPC_N",\
-                   dst="complexL_N",\
-                   nmol=nL_N)
-        register_move_nmol(T_list,
-                   src="complexL_NPC_C",\
-                   dst="complexL_C",\
-                   nmol=nL_C)
-        register_move_nmol(T_list,
-                   src="complexU_NPC_N",\
-                   dst="complexU_N",\
-                   nmol=nU_N)
-        register_move_nmol(T_list,
-                   src="complexU_NPC_C",\
-                   dst="complexU_C",\
-                   nmol=nU_C)
+
+        for label in ["L", "U"]:
+            for compartment in ["N", "C"]:
+                for suffix in ["import", "export"]:
+                    src = f"complex{label}_NPC_{compartment}_{suffix}"
+                    dst = f"complex{label}_{compartment}"
+                    n = f * self.nmol[src]
+                    register_move_nmol(T_list,
+                               src=src,\
+                               dst=dst,\
+                               nmol=n)
 
     @register_update()
     def get_nmol_cargo_bleached(self, T_list):
@@ -634,57 +610,54 @@ class TransportSimulation():
         Compute a summary of the gross number of cargo molecules imported and exported.
         Should be called BEFORE transitions are updated
         '''
-        active_import = 0
-        passive_import = 0
-        active_export = 0
-        passive_export = 0
-        npc_docked_N = 0
-        npc_docked_C = 0
-        npc_undocked = 0
+        #TODO this is a hack - make it better
+        active_import = {"L": 0, "U": 0}
+        passive_import = {"L": 0, "U": 0}
+        active_export = {"L": 0, "U": 0}
+        passive_export = {"L": 0, "U": 0}
+
 
         for src, dst, nmol in T_list:
             # we aren't interested in Ran
             if "GTP" in src or "GDP" in src:
                 continue
 
-            # active import/export:
-            if "NPC" in src and not "NPC" in dst:
-                npc_undocked += nmol
-                if "N" in dst:
-                    active_import += (1-self.NPC_N2C_ratio) * nmol
-                else:
-                    active_export += self.NPC_N2C_ratio * nmol
+            is_labeled= "L" in src
+            assert((is_labeled and "L" in dst) or (not is_labeled and "U" in dst))
+            label= "L" if is_labeled else "U" 
+             # active import/export:
+            is_facilitated_transport = ("NPC" in src and not "NPC" in dst)
+            is_passive_diffusion = ("free" in src and "free" in dst)
+            if is_facilitated_transport:
+                if "N" in dst and "import" in src:
+                    active_import[label] += nmol
+                if "C" in dst and "export" in src:
+                    active_export[label] += nmol
 
-            # for NPC_N2C_ratio
-            elif "NPC" in dst and not "NPC" in src:
-                if "N" in src:
-                    npc_docked_N += nmol
-                elif "C" in src:
-                    npc_docked_C += nmol
             
-            # passive export
-            elif "N" in src and "C" in dst:
-                passive_export += nmol
-            # passive import
-            elif "C" in src and "N" in dst:
-                passive_import += nmol
+            elif is_passive_diffusion:
+                # passive export
+                if "N" in src and "C" in dst:
+                    passive_export[label] += nmol
+                # passive import
+                elif "C" in src and "N" in dst:
+                    passive_import[label] += nmol
             
         
         # update NPC_N2C_ratio
-        total_NPC = sum([self.nmol[key] for key in self.nmol if "NPC" in key])
-        total_NPC -= npc_undocked
-        enumerator = self.NPC_N2C_ratio*total_NPC + npc_docked_N
-        denominator = total_NPC + npc_docked_C + npc_docked_N
-        self.NPC_N2C_ratio = enumerator/denominator
         
-        total_N = sum([self.nmol[key] for key in self.nmol if "N" in key
-                                                            and not "NPC" in key
-                                                            and not "G" in key])
-        total_C = sum([self.nmol[key] for key in self.nmol if "C" in key
-                                                            and not "NPC" in key
-                                                            and not "G" in key])
-        self.nmol["import"] = (active_import + passive_import)/(total_N*self.dt_sec)
-        self.nmol["export"] = (active_export + passive_export)/(total_C*self.dt_sec)
+        for label in ["L", "U"]:
+            total_N = sum([self.nmol[key] for key in self.nmol if "N" in key
+                                                                and label in key
+                                                                and not "NPC" in key
+                                                                and not "G" in key])
+            total_C = sum([self.nmol[key] for key in self.nmol if "C" in key
+                                                                and label in key
+                                                                and not "NPC" in key
+                                                                and not "G" in key])
+
+            self.nmol[f"import_{label}"] = (active_import + passive_import)/(total_N*self.dt_sec)
+            self.nmol[f"export_{label}"] = (active_export + passive_export)/(total_C*self.dt_sec)
 
 
     def do_one_time_step(self):
