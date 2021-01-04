@@ -184,8 +184,10 @@ class TransportSimulation():
         self.v_C_L= 10e-15 # Cytoplsmic volume in L
         self.v_N_L= 3e-15 # Nuclear volume in L
         # NPC:
-        self.nmol["complexL_NPC"]= 1e0 # number of cargo-importin complexes docked to the NPC (labeled)
-        self.nmol["complexU_NPC"]= 0 # (unlabeled)
+        self.nmol["complexL_NPC_N"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
+        self.nmol["complexL_NPC_C"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
+        self.nmol["complexU_NPC_N"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
+        self.nmol["complexU_NPC_C"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
         # NPC directionality:
         self.NPC_N2C_ratio = 0.5 # ratio of cargo in the NPC that docked from the nucleus
         # Cytoplasm:
@@ -228,18 +230,18 @@ class TransportSimulation():
         f= self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec  \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
-        nL= f * self.nmol["complexL_NPC"] 
-        nU= f * self.nmol["complexU_NPC"] 
+        nL= f * self.nmol["complexL_NPC_N"] 
+        nU= f * self.nmol["complexU_NPC_N"] 
         n= nL+nU
 
         assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_NPC"] and nU <= self.nmol["complexU_NPC"]            
 
         register_move_nmol(T_list,
-                   src="complexL_NPC",\
+                   src="complexL_NPC_N",\
                    dst="freeL_N",\
                    nmol=nL)
         register_move_nmol(T_list,
-                   src="complexU_NPC",\
+                   src="complexU_NPC_N",\
                    dst="freeU_N",\
                    nmol=nU)
         register_move_nmol(T_list,
@@ -256,7 +258,6 @@ class TransportSimulation():
 
         Return: dictionary with number of molecules to add/subtract from each species
         """
-        #return float(int(np.power(nmol_GTP_N/max_RAN, 5)*nmol_NPC))
         c_GTP_N_M= self.get_concentration_M("GTP_N")
         f= self.fraction_complex_N_to_free_N_per_M_GTP_per_sec \
             * self.get_concentration_M("GTP_N") \
@@ -430,7 +431,9 @@ class TransportSimulation():
         # - we can change it in future based on theoretical equations of passive diffusion
         """
         # Comment: competition is assumed to have zero effect at this time
-        fraction_bound_dock_sites_NPC= (self.nmol["complexL_NPC"] + self.nmol["complexU_NPC"]) / self.NPC_dock_sites
+        fraction_bound_dock_sites_NPC= (self.nmol["complexL_NPC_N"] + self.nmol["complexU_NPC_N"] +\
+                                        self.nmol["complexL_NPC_C"] + self.nmol["complexU_NPC_C"]) \
+                                        / self.NPC_dock_sites
         competition_multiplier= 1.0 - self.passive_competition_weight * fraction_bound_dock_sites_NPC
         f= self.max_passive_diffusion_rate_nmol_per_sec_per_M \
             * competition_multiplier \
@@ -466,7 +469,7 @@ class TransportSimulation():
 
         Return: dictionary with number of molecules to add/subtract from each species
         """
-        nmol_free_sites_NPC = (self.NPC_dock_sites - self.nmol["complexL_NPC"] - self.nmol["complexU_NPC"])
+        nmol_free_sites_NPC = (self.NPC_dock_sites - self.nmol["complexL_NPC_C"] - self.nmol["complexU_NPC_C"])
         f = nmol_free_sites_NPC \
             * self.rate_complex_to_NPC_per_free_site_per_sec_per_M \
             * self.dt_sec
@@ -495,19 +498,48 @@ class TransportSimulation():
             assert(assert1 and assert2 and assert3)
         register_move_nmol(T_list,
                    src="complexL_N",\
-                   dst="complexL_NPC",\
+                   dst="complexL_NPC_N",\
                    nmol=nL_N)
         register_move_nmol(T_list,
                    src="complexL_C",\
-                   dst="complexL_NPC",\
+                   dst="complexL_NPC_C",\
                    nmol=nL_C)
         register_move_nmol(T_list,
                    src="complexU_N",\
-                   dst="complexU_NPC",\
+                   dst="complexU_NPC_N",\
                    nmol=nU_N)
         register_move_nmol(T_list,
                    src="complexU_C",\
-                   dst="complexU_NPC",\
+                   dst="complexU_NPC_C",\
+                   nmol=nU_C)
+
+    @register_update()
+    def get_nmol_complex_NPC_N_to_C(self, T_list):
+        """
+        Number of molecules passing between the N side and C side of the NPC
+        """
+        f = self.fraction_complex_NPC_traverse_per_sec * self.dt_sec
+
+        nL_N= f * self.nmol["complexL_NPC_N"] 
+        nU_N= f * self.nmol["complexU_NPC_N"] 
+        nL_C= f * self.nmol["complexL_NPC_C"] 
+        nU_C= f * self.nmol["complexU_NPC_C"] 
+
+        register_move_nmol(T_list,
+                   src="complexL_NPC_N",\
+                   dst="complexL_NPC_C",\
+                   nmol=nL_N)
+        register_move_nmol(T_list,
+                   src="complexU_NPC_N",\
+                   dst="complexU_NPC_C",\
+                   nmol=nU_N)
+        register_move_nmol(T_list,
+                   src="complexL_NPC_C",\
+                   dst="complexL_NPC_N",\
+                   nmol=nL_C)
+        register_move_nmol(T_list,
+                   src="complexU_NPC_C",\
+                   dst="complexU_NPC_N",\
                    nmol=nU_C)
 
     @register_update()
@@ -520,24 +552,26 @@ class TransportSimulation():
         """
         f= self.fraction_complex_NPC_to_complex_N_C_per_sec \
             * self.dt_sec # fractions are fine (conceptually, a random variable)
-        nL= f * self.nmol["complexL_NPC"] 
-        nU= f * self.nmol["complexU_NPC"] 
+        nL_N= f * self.nmol["complexL_NPC_N"] 
+        nL_C= f * self.nmol["complexL_NPC_C"] 
+        nU_N= f * self.nmol["complexU_NPC_N"] 
+        nU_C= f * self.nmol["complexU_NPC_C"] 
         register_move_nmol(T_list,
-                   src="complexL_NPC",\
+                   src="complexL_NPC_N",\
                    dst="complexL_N",\
-                   nmol=0.5*nL)
+                   nmol=nL_N)
         register_move_nmol(T_list,
-                   src="complexL_NPC",\
+                   src="complexL_NPC_C",\
                    dst="complexL_C",\
-                   nmol=0.5*nL)
+                   nmol=nL_C)
         register_move_nmol(T_list,
-                   src="complexU_NPC",\
+                   src="complexU_NPC_N",\
                    dst="complexU_N",\
-                   nmol=0.5*nU)
+                   nmol=nU_N)
         register_move_nmol(T_list,
-                   src="complexU_NPC",\
+                   src="complexU_NPC_C",\
                    dst="complexU_C",\
-                   nmol=0.5*nU)
+                   nmol=nU_C)
 
     @register_update()
     def get_nmol_cargo_bleached(self, T_list):
@@ -628,10 +662,10 @@ class TransportSimulation():
                 elif "C" in src:
                     npc_docked_C += nmol
             
-            #passive export
+            # passive export
             elif "N" in src and "C" in dst:
                 passive_export += nmol
-            #passive import
+            # passive import
             elif "C" in src and "N" in dst:
                 passive_import += nmol
             
