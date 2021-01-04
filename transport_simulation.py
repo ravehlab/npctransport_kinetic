@@ -725,20 +725,10 @@ class TransportSimulation():
         return RAN
 
     def get_total_cargoL_nmol(self):
-        return self.nmol["complexL_C"] + self.nmol["freeL_C"] + \
-               self.nmol["complexL_N"] + self.nmol["freeL_N"] + \
-               self.nmol["complexL_NPC_C_export"] + \
-               self.nmol["complexL_NPC_C_import"] + \
-               self.nmol["complexL_NPC_N_export"] + \
-               self.nmol["complexL_NPC_N_import"] 
+        return sum([self.nmol[key] for key in self.nmol if "L" in key])
         
     def get_total_cargoU_nmol(self):
-        return self.nmol["complexU_C"] + self.nmol["freeU_C"] + \
-               self.nmol["complexU_N"] + self.nmol["freeU_N"] + \
-               self.nmol["complexU_NPC_C_export"] + \
-               self.nmol["complexU_NPC_C_import"] + \
-               self.nmol["complexU_NPC_N_export"] + \
-               self.nmol["complexU_NPC_N_import"]
+        return sum([self.nmol[key] for key in self.nmol if "U" in key])
     
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
