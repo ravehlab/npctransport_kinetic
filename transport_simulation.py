@@ -156,11 +156,11 @@ class TransportSimulation():
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
         self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
-        self.fraction_complex_NPC_traverse_per_sec = 1e+3 # fraction of complexes that go from one side of the NPC to the other per sec
+        self.fraction_complex_NPC_traverse_per_sec = 1e+4 # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
-        self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6
+        self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6 * 2 # TODO: this is doubled relative to complex_N to free_N
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
-        self.fraction_complex_NPC_to_complex_N_C_per_sec= 1.0
+        self.fraction_complex_NPC_to_complex_N_C_per_sec= 1.0 # Leakage parameter
         self.rate_GDP_N_to_GTP_N_per_sec= 200.0
         self.rate_GTP_N_to_GDP_N_per_sec= 0.2
         self.rate_GTP_C_to_GDP_C_per_sec= 500.0
@@ -510,11 +510,13 @@ class TransportSimulation():
                    nmol=nU_C)
 
     @register_update()
-    def get_nmol_complex_NPC_N_to_C(self, T_list):
+    def get_nmol_complex_NPC_traverse(self, T_list):
         """
-        Number of molecules passing between the N side and C side of the NPC
+        Number of molecules passing between the N side and C side of the NPC (or vice versa)
         """
-        f = self.fraction_complex_NPC_traverse_per_sec * self.dt_sec
+        f= self.fraction_complex_NPC_traverse_per_sec * self.dt_sec
+        # TODO sovle the simple differential equation d(DeltaX)/dt=f*(DeltaX) (which is a simple exponent C0+e(f*t)) and put it here, but need to make sure this is the write exponrnt
+        f= min(f, 0.5) # Note: if f is larger than 0.5, traversal time through NPC >> dt_sec, so we assume it just equilibrates (it can't be rate limiting if all other processes are slow relative to dt_sec) - see TODO above
 
         for label in ["L", "U"]:
             for src in ["N", "C"]:
@@ -525,7 +527,7 @@ class TransportSimulation():
                     n= f * self.nmol[tag_src]
                     register_move_nmol(T_list,
                                       src= tag_src,
-                                      dst=  tag_dst,
+                                      dst= tag_dst,
                                       nmol= n)
 
     @register_update()
