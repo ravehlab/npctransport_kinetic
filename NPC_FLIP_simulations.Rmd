@@ -5,7 +5,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.5.1
+      jupytext_version: 1.7.1
   kernelspec:
     display_name: Python 3
     language: python
@@ -88,7 +88,7 @@ fL - femtoliter
 
 ```
 
-```{python id="EFB0CCNeyYPC"}
+```{python id="EFB0CCNeyYPC", jupyter={'source_hidden': True}}
 import numpy as np
 import re
 
@@ -634,7 +634,8 @@ class TransportSimulation():
 ```
 
 ```{python}
-
+from transport_simulation import TransportSimulation
+import numpy as np
 ```
 
 <!-- #region id="hT1IxvgltqJP" -->
@@ -830,8 +831,8 @@ def get_tau_passive_diffusion(nmol_per_sec_per_M, volume_L):
 ```
 
 ```{python id="BhUdzBKH675g"}
-def get_new_transport_simulation():
-    ts= TransportSimulation( )        
+def get_new_transport_simulation(**kwargs):
+    ts= TransportSimulation(**kwargs)        
 #    ts.set_params(rate_GDP_C_to_GDP_N_per_sec=7)   
     ts.set_params(dt_sec=1e-3)
     return ts
@@ -841,9 +842,9 @@ def get_new_transport_simulation():
 import multiprocessing
 
 def mp_do_simulation(param_range, i, j, equilibration_time_sec):
-    my_ts= get_new_transport_simulation()
+    my_ts= get_new_transport_simulation(Ran_cell_M=7.5e-6)
     my_ts.set_params(max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
-              rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
+              fraction_complex_NPC_traverse_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
     stats = my_ts.simulate(equilibration_time_sec)   
     return {"i":i, "j":j, "stats":stats}
 
@@ -885,7 +886,7 @@ def map_param_grid_parallel(nx,
         np.logspace(-3, 
                     0, #-epsilon, 
                     ny)
-    ts= get_new_transport_simulation()
+    ts= get_new_transport_simulation(fraction_complex_NPC_traverse_per_sec=1.)
     for key in param_range.keys():
         print("Param {:} default value is {:}".format(key, getattr(ts, key)))
     stats_grids = {}
@@ -914,7 +915,7 @@ def map_param_grid_parallel(nx,
 ```
 
 ```{python id="BhUdzBKH675g"}
-
+ts = get_new_transport_simulation()
 ```
 
 ```{python id="Edd4bveu5jph"}
@@ -927,18 +928,27 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
 
 param_range, stats_grids= map_param_grid_parallel(nx= 9,
                                         ny= 12,
-#                                        is_reset=True, 
-                                        equilibration_time_sec= 100.0)
+#                                       is_reset=True, 
+                                        equilibration_time_sec= 50.0,
+                                        n_processors=4)
 ratios= get_N_to_C_ratios(stats_grids, 
                           v_N_L= ts.get_v_N_L(), 
                           v_C_L= ts.get_v_C_L())
 ```
 
 ```{python id="Edd4bveu5jph"}
-print(ratios)
+def get_import_export_ratios(stats_grids):
+    ''' return import/export ratios from stats_grids computed in the previous cell'''
+    import_rate= stats_grids["import_L"]+stats_grids["import_U"]
+    export_rate= stats_grids["export_L"]+stats_grids["export_U"]
+    ratios= import_rate/export_rate
+    return ratios
+
+ratios= get_import_export_ratios(stats_grids)
 ```
 
 ```{python id="XQvFv3M-NYJN"}
+import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 vmax=4
 x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
@@ -982,6 +992,10 @@ cb.set_ticks(ticks)
 ```
 
 ```{python}
+multiprocessing.cpu_count()
+```
+
+```{python}
 complexL_N_fraction= stats_grids["complexL_N"]/(stats_grids["complexL_N"]+stats_grids["freeL_N"])
 complexL_C_fraction= stats_grids["complexL_C"]/(stats_grids["complexL_C"]+stats_grids["freeL_C"])
 
@@ -1016,16 +1030,70 @@ cb.set_ticks(ticks)
 ```
 
 ```{python}
+def get_ts_parameters(MW=27, NLS_strength=0, force=False, **kwargs):
+    ts = TransportSimulation(**kwargs)
+    diffusion_rate = get_diffusion_rate(MW)
+    free_to_complex_rate = get_free_to_complex_rate(NLS_strength)
+    ts.set_passive_diffusion_rate_per_sec(diffusion_rate)
+    ts.set_params(rate_free_to_complex_per_sec=free_to_complex_rate)
 
+    if force:
+        diffusion_rate += get_force_effect_on_diffusion(MW)
+        force_effect = get_force_effect_on_import(MW, NLS_strength)
+        NPC_transport_rate = ts.fraction_complex_NPC_traverse_per_sec + force_effect
+        ts.set_params(fraction_complex_NPC_traverse_per_sec=NPC_transport_rate)
+    return ts
+
+def get_free_to_complex_rate(NLS_strength):
+    rates = [0.00, #0.07
+             0.2, #2.11
+             0.3  #16.4
+            ]
+    return rates[NLS_strength]
+
+def get_diffusion_rate(MW):
+    #TODO: generalize this - either from the literature or regression
+    rates = {27:0.07624291, 41:0.0560286, 54:0.03452787, 67:0.03022162}
+    return rates[MW]
+
+def get_force_effect_on_diffusion(MW):
+    """
+    The effect of force on passive diffusion as measured by experiment
+    """
+    effects = {27:0.08698999,
+               41:0.03395035,
+               54:-0.00019152,
+               67:0.00177338}
+    return effects[MW]
+
+def get_force_effect_on_import(MW, NLS_strength):
+    NPC_transport_rates = {}
+    NPC_transport_rates[27] = [0, 0.2, 0.5]
+    NPC_transport_rates[41] = [0, 0.2, 0.5]
+    NPC_transport_rates[54] = [0, 0.2, 0.5]
+    NPC_transport_rates[67] = [0, 0.2, 0.5]
+    return NPC_transport_rates[MW][NLS_strength]
 
 ```
 
 ```{python}
 
+import matplotlib.pyplot as plt
+for i in range(1,3):
+    ts = get_ts_parameters(NLS_strength=i, fraction_complex_NPC_to_free_N_per_M_GTP_per_sec=0.005e7)
+    #ts.set_params(dt_sec=1e-3)
+    stats = ts.simulate(50)
+    plt.plot(stats['import_L'][20000:], label=i)
+plt.title("Active import")
+_=plt.legend()
 ```
 
 ```{python}
+plt.plot(stats['complexL_NPC'])
+```
 
+```{python}
+0.005e5<0.005e6
 ```
 
 ```{python}

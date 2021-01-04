@@ -156,7 +156,7 @@ class TransportSimulation():
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
         self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
-        self.fraction_complex_NPC_traverse_per_sec = 0.5 # fraction of complexes that go from one side of the NPC to the other per sec
+        self.fraction_complex_NPC_traverse_per_sec = 1. # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
         self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
@@ -173,6 +173,7 @@ class TransportSimulation():
         self.max_passive_diffusion_rate_nmol_per_sec_per_M= 20000 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
         self.bleach_volume_L_per_sec= 1.0e-15 # cytoplasmic cargo volume being bleached per second
         self.bleach_start_time_sec= np.inf # no bleaching by default
+        self.Ran_cell_M= 2e-6
         self.set_params(**kwargs)
 
 
@@ -213,7 +214,7 @@ class TransportSimulation():
         self.nmol["import_U"] = 0
         self.nmol["export_U"] = 0
         # Ran in all:
-        self.set_RAN_distribution(Ran_cell_M= 2e-5, # total physiological concentration of Ran # TODO: check in the literature 
+        self.set_RAN_distribution(Ran_cell_M= self.Ran_cell_M, # total physiological concentration of Ran # TODO: check in the literature 
                                   parts_GTP_N=1000,
                                   parts_GTP_C=1,
                                   parts_GDP_N=1,
@@ -235,8 +236,8 @@ class TransportSimulation():
         f= self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec  \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
-        for suffix in ['import', 'export']:
-            for label in ['L', 'U']:
+        for suffix in ["import", "export"]:
+            for label in ["L", "U"]:
                 src = f"complex{label}_NPC_N_{suffix}"
                 dst = f"free{label}_N"
                 n= f * self.nmol[src] 
@@ -515,7 +516,7 @@ class TransportSimulation():
         """
         f = self.fraction_complex_NPC_traverse_per_sec * self.dt_sec
 
-        for label in ["L", '"U"']:
+        for label in ["L", "U"]:
             for src in ["N", "C"]:
                 dst= "C" if (src=="N") else "N"
                 for suffix in ["import", "export"]:
@@ -644,7 +645,6 @@ class TransportSimulation():
                     passive_import[label] += nmol
             
         
-        # update NPC_N2C_ratio
         
         for label in ["L", "U"]:
             total_N = sum([self.nmol[key] for key in self.nmol if "N" in key
@@ -656,8 +656,14 @@ class TransportSimulation():
                                                                 and not "NPC" in key
                                                                 and not "G" in key])
 
-            self.nmol[f"import_{label}"] = (active_import + passive_import)/(total_N*self.dt_sec)
-            self.nmol[f"export_{label}"] = (active_export + passive_export)/(total_C*self.dt_sec)
+            if total_N == 0:
+                self.nmol[f"import_{label}"] = 0
+            else:
+                self.nmol[f"import_{label}"] = (active_import[label] + passive_import[label])/(total_N*self.dt_sec)
+            if total_C == 0:
+                self.nmol[f"export_{label}"] = 0
+            else:
+                self.nmol[f"export_{label}"] = (active_export[label] + passive_export[label])/(total_C*self.dt_sec)
 
 
     def do_one_time_step(self):
