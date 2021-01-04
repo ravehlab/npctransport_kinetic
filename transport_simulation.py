@@ -156,7 +156,7 @@ class TransportSimulation():
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
         self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
-        self.fraction_complex_NPC_traverse_per_sec = 1. # fraction of complexes that go from one side of the NPC to the other per sec
+        self.fraction_complex_NPC_traverse_per_sec = 1e+3 # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
         self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
@@ -173,7 +173,7 @@ class TransportSimulation():
         self.max_passive_diffusion_rate_nmol_per_sec_per_M= 20000 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
         self.bleach_volume_L_per_sec= 1.0e-15 # cytoplasmic cargo volume being bleached per second
         self.bleach_start_time_sec= np.inf # no bleaching by default
-        self.Ran_cell_M= 2e-6
+        self.Ran_cell_M= 20e-6
         self.set_params(**kwargs)
 
 
@@ -622,9 +622,12 @@ class TransportSimulation():
             # we aren't interested in Ran
             if "GTP" in src or "GDP" in src:
                 continue
+            is_bleach= "L" in src and "U" in dst
+            if is_bleach:
+                continue
 
-            is_labeled= "L" in src
-            assert((is_labeled and "L" in dst) or (not is_labeled and "U" in dst))
+            is_labeled= "L" in src 
+            assert((is_labeled and "L" in dst) or ((not is_labeled) and "U" in dst))
             label= "L" if is_labeled else "U" 
              # active import/export:
             is_facilitated_transport = ("NPC" in src and not "NPC" in dst)
@@ -720,14 +723,23 @@ class TransportSimulation():
     def get_total_RAN(self):
         RAN = self.nmol["GDP_C"] + self.nmol["GTP_C"] + self.nmol["GDP_N"] + self.nmol["GTP_N"]
         return RAN
+
     def get_total_cargoL_nmol(self):
         return self.nmol["complexL_C"] + self.nmol["freeL_C"] + \
                self.nmol["complexL_N"] + self.nmol["freeL_N"] + \
-               self.nmol["complexL_NPC"] 
+               self.nmol["complexL_NPC_C_export"] + \
+               self.nmol["complexL_NPC_C_import"] + \
+               self.nmol["complexL_NPC_N_export"] + \
+               self.nmol["complexL_NPC_N_import"] 
+        
     def get_total_cargoU_nmol(self):
         return self.nmol["complexU_C"] + self.nmol["freeU_C"] + \
                self.nmol["complexU_N"] + self.nmol["freeU_N"] + \
-               self.nmol["complexU_NPC"]
+               self.nmol["complexU_NPC_C_export"] + \
+               self.nmol["complexU_NPC_C_import"] + \
+               self.nmol["complexU_NPC_N_export"] + \
+               self.nmol["complexU_NPC_N_import"]
+    
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
 
