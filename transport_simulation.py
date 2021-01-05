@@ -255,7 +255,7 @@ class TransportSimulation():
                            src="GTP_N",
                            dst="GTP_C",
                            nmol=n_GTP)
-                
+               
 
     @register_update()
     def get_nmol_complex_N_to_free_N(self, T_list):
@@ -749,9 +749,13 @@ class TransportSimulation():
         return RAN
 
     def get_total_cargoL_nmol(self):
-        return sum([self.nmol[key] for key in self.nmol if "L" in key])
+        def is_cargoL(s):
+            return s.startswith("freeL_") or s.startswith("complexL_")
+        return sum([self.nmol[key] for key in self.nmol if is_cargoL(key)])
         
     def get_total_cargoU_nmol(self):
+        def is_cargoU(s):
+            return s.startswith("freeU_") or s.startswith("complexU_")
         return sum([self.nmol[key] for key in self.nmol if "U" in key])
     
     def get_total_cargo_nmol(self):
