@@ -174,11 +174,11 @@ axes0, _, _ = plot_simulation_attributes(sim_time_sec,
                                    log= is_log, rate_GDP_N_to_GTP_N_per_sec=0.2,
                                   dt_sec= 1e-3)
 axes0[0,0].set_title("slow GDP_N to GTP_N rate")
-axes1 = plot_simulation_attributes(sim_time_sec, [cargoL_attributes], 
+axes1, _, _ = plot_simulation_attributes(sim_time_sec, [cargoL_attributes], 
                                    log= is_log,
                                   dt_sec= 1e-3)
 axes1[0,0].set_title("normal GDP_N to GTP_N rate")
-fig, ax2= fig.subplots(1,1)
+fig, ax2= plt.subplots(1,1)
 ax2.plot(c_1[-1], label='rate_GDP_N_to_GTP_N_per_sec=0.2')
 ax2.plot(c_2[-1], label='rate_GDP_N_to_GTP_N_per_sec=200.0')
 ax2.set_title("complexL_N")
@@ -259,7 +259,7 @@ def map_param_grid_parallel(nx,
                     nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
     param_range["rate_free_to_complex_per_sec"] = \
         np.logspace(-3, 
-                    2, #-epsilon, 
+                    0, #-epsilon, 
                     ny)
     ts= get_new_transport_simulation(fraction_complex_NPC_traverse_per_sec=1.)
     for key in param_range.keys():
