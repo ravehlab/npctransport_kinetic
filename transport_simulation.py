@@ -160,7 +160,7 @@ class TransportSimulation():
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
         self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
-        self.fraction_complex_NPC_traverse_per_sec = 1e+4 # fraction of complexes that go from one side of the NPC to the other per sec
+        self.fraction_complex_NPC_traverse_per_sec = 1e+7 # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
         self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6 * 2 # TODO: this is doubled relative to complex_N to free_N
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
@@ -240,15 +240,22 @@ class TransportSimulation():
         f= self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec  \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
+        n_GTP= 0
         for suffix in ["import", "export"]:
             for label in ["L", "U"]:
                 src = f"complex{label}_NPC_N_{suffix}"
                 dst = f"free{label}_N"
-                n= f * self.nmol[src] 
+                n= f * self.nmol[src]
+                n_GTP += n
                 register_move_nmol(T_list,
                            src=src,\
                            dst=dst,\
                            nmol=n)
+        register_move_nmol(T_list,
+                           src="GTP_N",
+                           dst="GTP_C",
+                           nmol=n_GTP)
+                
 
     @register_update()
     def get_nmol_complex_N_to_free_N(self, T_list):
