@@ -107,7 +107,7 @@ def plot_simulation_attributes(sim_time_sec, attributes, n_skip=10, log=True, ax
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 15.0
+sim_time_sec= 150.0
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC_C_import', 'complexL_NPC_C_export',
                     'complexL_NPC_N_import', 'complexL_NPC_N_export',
