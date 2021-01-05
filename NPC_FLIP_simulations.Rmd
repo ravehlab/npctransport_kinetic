@@ -59,55 +59,67 @@ from transport_simulation import TransportSimulation
 from matplotlib import pyplot as plt
 import numpy as np
 
-def time_series(sim_time_sec, attributes, n_skip=10, **kwargs):
+def time_series(sim_time_sec, attributes, n_skip=10, dt_sec=1e-3, **kwargs):
   '''
   TODO
   '''
   ts= TransportSimulation(**kwargs)
   ts.bleach_start_time_sec= 100.0
-  ts.dt_sec= 5e-5
+  ts.dt_sec= dt_sec
   n= int(np.ceil(sim_time_sec / ts.dt_sec))
   print(f"Running for n={n} time steps")
   n_frames= int(np.floor(n/n_skip)) + 1 
-  c_arr = np.zeros((len(attributes), n_frames))
+  c_arrs = {attr: np.zeros(n_frames) for attr in attributes}
   i_frame= 0
   print("Cargo before: {}".format(ts.get_total_cargo_nmol()))
   for i in range(n):
     ts.do_one_time_step()
     if (i % n_skip) == 0:
-      for j, attr in enumerate(attributes):
-        c_arr[j,i_frame] = ts.get_nmol(attr)
+      for attr in attributes:
+        c_arrs[attr][i_frame] = ts.get_nmol(attr)
       i_frame += 1
   print("Cargo after: {}".format(ts.get_total_cargo_nmol()))
-  return c_arr[:,:-1]
+  return c_arrs
 
 
-def plot_simulation_attributes(sim_time_sec, attributes, n_skip=10, log=True, ax=None, **kwargs):
-  c = time_series(sim_time_sec, attributes, n_skip= n_skip, **kwargs)
-  n_frames= c.shape[1]
-  x = np.arange(n_frames) * sim_time_sec / n_frames
-  for i, attr in enumerate(attributes):
-    if ax is None:
-      plt.plot(x, c[i], label=attr)
-    else:
-      ax.plot(x, c[i], label=attr)
-  if ax is None:
-    ax= plt.gca()
-  if log:
-    ax.set_yscale('log')
-  ax.set_xlabel("time [sec]")
-  ax.set_ylabel("nmol")
-  ax.legend()
-  if is_log:
-    ylim= ax.get_ylim()
-    ylim= (10.0, ylim[1])
-    ax.set_ylim(ylim)
-  return c
+def plot_simulation_attributes(sim_time_sec, 
+                               attributes_list, 
+                               dt_sec,
+                               n_skip=10, 
+                               log=True, 
+                               **kwargs):
+  def merge_lists(lists):
+      return [x for y in lists for x in y]
+  attributes= merge_lists(attributes_list)
+  assert(len(attributes) == sum([len(x) for x in attributes_list]))
+  c = time_series(sim_time_sec, 
+                  attributes, 
+                  n_skip= n_skip,
+                  dt_sec= dt_sec,
+                  **kwargs)
+  fig, axes= plt.subplots(3,1, figsize=(10,15), squeeze= False)
+  for cur_attributes, ax in zip(attributes_list, axes[:,0]):
+      print(cur_attributes)
+      for attr in cur_attributes:
+        cur_c= c[attr]
+        n_frames= len(cur_c)
+        x = np.arange(n_frames) * sim_time_sec / n_frames
+        ax.plot(x, cur_c, label=attr)
+      if log:
+        ax.set_yscale('log')
+      ax.set_xlabel("time [sec]")
+      ax.set_ylabel("nmol")
+      ax.legend()
+      if is_log:
+        ylim= ax.get_ylim()
+        ylim= (10.0, ylim[1])
+        ax.set_ylim(ylim)
+  return axes, x, c
 
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 15.0
+sim_time_sec= 150.0
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC_C_import', 'complexL_NPC_C_export',
                     'complexL_NPC_N_import', 'complexL_NPC_N_export',
@@ -124,32 +136,53 @@ dock_attributes = ['c_C_M', 'fraction_C_b', 'nmol_NPC', 'NPC_dock_capacity']
 ```
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
-
 is_log= False
-plt.figure(figsize=(10,5))
-plot_simulation_attributes(sim_time_sec, RAN_attributes, log= is_log)
+ax, x, c= plot_simulation_attributes(sim_time_sec, 
+                           [ RAN_attributes, 
+                             cargoL_attributes, 
+                             cargoU_attributes ],
+                            log= is_log,
+                            dt_sec=1e-3)
+```
 
-plt.show()
-plt.figure(figsize=(10,5))
-c=plot_simulation_attributes(sim_time_sec, cargoL_attributes, log= is_log)
-plt.show()
-plt.figure(figsize=(10,5))
-c=plot_simulation_attributes(sim_time_sec, cargoU_attributes, log= is_log)
-plt.show()
+```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
+print(c.keys())
+fig,ax= plt.subplots(1,1)
+ax.plot(x, 
+        c['complexL_NPC_C_import']+
+        c['complexL_NPC_C_export']+ 
+        c['complexL_NPC_N_import']+
+        c['complexL_NPC_N_export'])
+#plt.show()
+#plt.figure(figsize=(10,5))
+#c=plot_simulation_attributes(sim_time_sec, cargoL_attributes, log= is_log)
+#plt.show()
+#plt.figure(figsize=(10,5))
+#c=plot_simulation_attributes(sim_time_sec, cargoU_attributes, log= is_log)
+#plt.show()
+```
+
+```{python}
 
 ```
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 327}, id="XhwtdMILBQRz", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="a839a06b-8902-4553-8096-f39b2a9ea16c"}
 
-fig, ax = plt.subplots(1, 3,figsize=(40,5))
-c_1 = plot_simulation_attributes(sim_time_sec, cargoL_attributes, log= is_log, ax=ax[0], rate_GDP_N_to_GTP_N_per_sec=0.2)
-c_2 = plot_simulation_attributes(sim_time_sec, cargoL_attributes, log= is_log, ax=ax[1])
-ax[2].plot(c_1[-1], label='rate_GDP_N_to_GTP_N_per_sec=0.2')
-ax[2].plot(c_2[-1], label='rate_GDP_N_to_GTP_N_per_sec=200.0')
-ax[2].set_title("complexL_N")
-ax[0].set_title("slow GDP_N to GTP_N rate")
-ax[1].set_title("normal GDP_N to GTP_N rate")
-ax[2].legend()
+#fig, ax = plt.subplots(1, 3,figsize=(40,5))
+axes0, _, _ = plot_simulation_attributes(sim_time_sec, 
+                                   [cargoL_attributes], 
+                                   log= is_log, rate_GDP_N_to_GTP_N_per_sec=0.2,
+                                  dt_sec= 1e-3)
+axes0[0,0].set_title("slow GDP_N to GTP_N rate")
+axes1, _, _ = plot_simulation_attributes(sim_time_sec, [cargoL_attributes], 
+                                   log= is_log,
+                                  dt_sec= 1e-3)
+axes1[0,0].set_title("normal GDP_N to GTP_N rate")
+fig, ax2= plt.subplots(1,1)
+ax2.plot(c_1[-1], label='rate_GDP_N_to_GTP_N_per_sec=0.2')
+ax2.plot(c_2[-1], label='rate_GDP_N_to_GTP_N_per_sec=200.0')
+ax2.set_title("complexL_N")
+ax2.legend()
 ```
 
 ## Map parameters phasespace of transport
@@ -181,8 +214,10 @@ def get_new_transport_simulation(**kwargs):
 ```{python id="BhUdzBKH675g"}
 import multiprocessing
 
-def mp_do_simulation(param_range, i, j, equilibration_time_sec):
-    my_ts= get_new_transport_simulation(Ran_cell_M=12.5e-6)
+def mp_do_simulation(param_range, i, j, 
+                     equilibration_time_sec):
+    init_params= {"Ran_cell_M": 20e-6}
+    my_ts= get_new_transport_simulation(**init_params)
     my_ts.set_params(max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
               fraction_complex_NPC_traverse_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
     stats = my_ts.simulate(equilibration_time_sec)   
@@ -266,10 +301,10 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-param_range, stats_grids= map_param_grid_parallel(nx= 6,
-                                        ny= 10,
+param_range, stats_grids= map_param_grid_parallel(nx= 5,
+                                        ny= 8,
 #                                       is_reset=True, 
-                                        equilibration_time_sec= 50.0,
+                                        equilibration_time_sec= 100.0,
                                         n_processors=6)
 ratios= get_N_to_C_ratios(stats_grids, 
                           v_N_L= ts.get_v_N_L(), 
@@ -284,7 +319,8 @@ def get_import_export_ratios(stats_grids):
     ratios= import_rate/export_rate
     return ratios
 
-ratios_import_export= get_import_export_ratios(stats_grids)
+if False:
+    ratios_import_export= get_import_export_ratios(stats_grids)
 ```
 
 ```{python id="XQvFv3M-NYJN"}
@@ -336,36 +372,30 @@ multiprocessing.cpu_count()
 ```
 
 ```{python}
-complexL_N_fraction= stats_grids["complexL_N"]/(stats_grids["complexL_N"]+stats_grids["freeL_N"])
-complexL_C_fraction= stats_grids["complexL_C"]/(stats_grids["complexL_C"]+stats_grids["freeL_C"])
-
-
-##### Contourf
-vmax=1.0
-plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, complexL_C_fraction, 
-             vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,11), extend='both')
-ax= plt.gca()
-ax.set_xscale('log')
-ax.set_yscale('log')
-#ax.set_yscale('log')
-ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
-ax.set_ylabel("importin binding rate [$s^{-1}$]")
-xlim= ax.get_xlim()
-ylim= ax.get_ylim()
-ax.set_xlim(xlim[1], xlim[0])
-#ax.set_ylim(ylim[1], ylim[0])
-print(ax.get_xticks())
-#ax.set_xticklabels(["{:.1f}".format(xtick) for xtick in param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"]])
-#ax.set_yticklabels(["{:.2f}".format(ytick) for ytick in param_range["rate_free_C_to_complex_C_per_sec"]])
-cb = plt.colorbar(label="bound fraction (C)")
-ticks = cb.get_ticks()
-cb.set_ticks(ticks)
-
-#ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
-#ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
-
-#cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
+for compartment in ['N', 'C']:
+    tag_complex= f"complexL_{compartment}"
+    tag_free= f"freeL_{compartment}"
+    complexL_fraction= stats_grids[tag_complex]/(stats_grids[tag_complex]+stats_grids[tag_free])
+    ##### Contourf
+    vmax=1.0
+    plt.figure()
+    plt.contourf(x_meshgrid, y_meshgrid, complexL_fraction, 
+                 vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,11), extend='both')
+    ax= plt.gca()
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
+    ax.set_ylabel("importin binding rate [$s^{-1}$]")
+    xlim= ax.get_xlim()
+    ylim= ax.get_ylim()
+    ax.set_xlim(xlim[1], xlim[0])
+    #ax.set_ylim(ylim[1], ylim[0])
+    print(ax.get_xticks())
+    
+    cb = plt.colorbar()#label=f"bound fraction ({compartment})")
+    ax.set_title(f"bound fraction ({compartment})")
+    ticks = cb.get_ticks()
+    cb.set_ticks(ticks)
 
 ```
 
@@ -429,11 +459,14 @@ _=plt.legend()
 ```
 
 ```{python}
-plt.plot(stats['complexL_NPC'])
+plt.plot(stats['complexL_NPC_N_import'] +
+        stats['complexL_NPC_N_export'] +
+        stats['complexL_NPC_C_import'] +
+        stats['complexL_NPC_C_export'])
 ```
 
 ```{python}
-0.005e5<0.005e6
+
 ```
 
 ```{python}

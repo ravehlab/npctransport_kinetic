@@ -3,6 +3,8 @@ import numpy as np
 import re
 
 N_A= 6.022e+23 # Avogadro's number 
+VERBOSE= True
+CHECKS= False
 
 # TODO: test
 def fL_to_L(v_fL):
@@ -21,6 +23,8 @@ def register_update_functions(cls):
         if hasattr(method, '_update_func'):
             if method._update_func:
                 cls._update_funcs.append(method)
+                if(VERBOSE):
+                    print(f"Registering {method}")
     return cls
 
 def register_update(active=True):
@@ -156,11 +160,11 @@ class TransportSimulation():
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
         self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
-        self.fraction_complex_NPC_traverse_per_sec = 1e+3 # fraction of complexes that go from one side of the NPC to the other per sec
+        self.fraction_complex_NPC_traverse_per_sec = 1e+7 # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
-        self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6
+        self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6 * 2 # TODO: this is doubled relative to complex_N to free_N
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
-        self.fraction_complex_NPC_to_complex_N_C_per_sec= 1.0
+        self.fraction_complex_NPC_to_complex_N_C_per_sec= 1.0 # Leakage parameter
         self.rate_GDP_N_to_GTP_N_per_sec= 200.0
         self.rate_GTP_N_to_GDP_N_per_sec= 0.2
         self.rate_GTP_C_to_GDP_C_per_sec= 500.0
@@ -236,15 +240,22 @@ class TransportSimulation():
         f= self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec  \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
+        n_GTP= 0
         for suffix in ["import", "export"]:
             for label in ["L", "U"]:
                 src = f"complex{label}_NPC_N_{suffix}"
                 dst = f"free{label}_N"
-                n= f * self.nmol[src] 
+                n= f * self.nmol[src]
+                n_GTP += n
                 register_move_nmol(T_list,
                            src=src,\
                            dst=dst,\
                            nmol=n)
+        register_move_nmol(T_list,
+                           src="GTP_N",
+                           dst="GTP_C",
+                           nmol=n_GTP)
+                
 
     @register_update()
     def get_nmol_complex_N_to_free_N(self, T_list):
@@ -478,20 +489,21 @@ class TransportSimulation():
         nL_C= f * cL_C_M 
         nU_N= f * cU_N_M 
         nU_C= f * cU_C_M
-        assert_coeff= 2.0
-        assert1_almost= (nL_N+nL_C+nU_N+nU_C <= assert_coeff*nmol_free_sites_NPC) 
-        assert2_almost= (nL_N+nU_N <= assert_coeff*(self.nmol["complexL_N"]+self.nmol["complexU_N"])) 
-        assert3_almost= (nL_C+nU_C <= assert_coeff*(self.nmol["complexL_C"]+self.nmol["complexU_C"]))
-        if(not (assert1_almost and assert2_almost and assert3_almost)):       
-            assert1= (nL_N+nL_C+nU_N+nU_C <= nmol_free_sites_NPC) 
-            assert2= (nL_N+nU_N <= self.nmol["complexL_N"]+self.nmol["complexU_N"]) 
-            assert3= (nL_C+nU_C <= self.nmol["complexL_C"]+self.nmol["complexU_C"])
-            print(self.nmol)
-            print(f"f {f} dLabeled: N {nL_N} C {nL_C}, dUnlabeled: N {nU_N} C {nU_C}")
-            assert(assert1)
-            assert(assert2)
-            assert(assert3)
-            assert(assert1 and assert2 and assert3)
+        if CHECKS:
+            assert_coeff= 2.0
+            assert1_almost= (nL_N+nL_C+nU_N+nU_C <= assert_coeff*nmol_free_sites_NPC) 
+            assert2_almost= (nL_N+nU_N <= assert_coeff*(self.nmol["complexL_N"]+self.nmol["complexU_N"])) 
+            assert3_almost= (nL_C+nU_C <= assert_coeff*(self.nmol["complexL_C"]+self.nmol["complexU_C"]))
+            if(not (assert1_almost and assert2_almost and assert3_almost)):       
+                assert1= (nL_N+nL_C+nU_N+nU_C <= nmol_free_sites_NPC) 
+                assert2= (nL_N+nU_N <= self.nmol["complexL_N"]+self.nmol["complexU_N"]) 
+                assert3= (nL_C+nU_C <= self.nmol["complexL_C"]+self.nmol["complexU_C"])
+                print(self.nmol)
+                print(f"f {f} dLabeled: N {nL_N} C {nL_C}, dUnlabeled: N {nU_N} C {nU_C}")
+                assert(assert1)
+                assert(assert2)
+                assert(assert3)
+                assert(assert1 and assert2 and assert3)
         register_move_nmol(T_list,
                    src="complexL_N",\
                    dst="complexL_NPC_N_export",\
@@ -510,11 +522,23 @@ class TransportSimulation():
                    nmol=nU_C)
 
     @register_update()
-    def get_nmol_complex_NPC_N_to_C(self, T_list):
+    def get_nmol_complex_NPC_traverse(self, T_list):
         """
-        Number of molecules passing between the N side and C side of the NPC
+        Number of molecules passing between the N side and C side of the NPC (or vice versa)
         """
-        f = self.fraction_complex_NPC_traverse_per_sec * self.dt_sec
+        # Note - Delta is the solution to the differential equation
+        # for bidirectional movement from one side to another very
+        # similarly to Fick's law. If we have n1 molecules on one side
+        # and n2 molecules on the other, using Delta=(n1-n2) and
+        # tau-1.0/self.fraction_complex_NPC_traverse_per_sec, then
+        # dDelta/dt=Delta/tau, the solution being Delta(t) =
+        # Delta(t0)*exp(-t/tau). Let Delta_fractional=exp(-t/tau),
+        # then the net fraction of molecules traversing from one side
+        # to the other over dt_sec seconds is thus half of (1.0 -
+        # Delta_fractional)
+        Delta_fractional= np.exp(-self.fraction_complex_NPC_traverse_per_sec * self.dt_sec)
+        f= 0.5 * (1 - Delta_fractional)
+#        f= min(f, 0.5) # Note: if f is larger than 0.5, traversal time through NPC >> dt_sec, so we assume it just equilibrates (it can't be rate limiting if all other processes are slow relative to dt_sec) - see TODO above
 
         for label in ["L", "U"]:
             for src in ["N", "C"]:
@@ -525,14 +549,14 @@ class TransportSimulation():
                     n= f * self.nmol[tag_src]
                     register_move_nmol(T_list,
                                       src= tag_src,
-                                      dst=  tag_dst,
+                                      dst= tag_dst,
                                       nmol= n)
 
     @register_update()
     def get_nmol_complex_NPC_to_complex_N_C(self, T_list):
         """
-        Number of complexed cargo-importin released from the NPC to the nucleus and cytoplasm 
-        (assumed 50-50 between nucleus and cytoplasm)
+        Number of complexed cargo-importin released from the nuclear and cytoplasmic
+        ends of the NPC to the nucleus and cytoplasm, respectively
 
         Return: dictionary with number of molecules to add/subtract from each species
         """
