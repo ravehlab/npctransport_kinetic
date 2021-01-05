@@ -226,7 +226,7 @@ def map_param_grid_parallel(nx,
                     nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
     param_range["rate_free_to_complex_per_sec"] = \
         np.logspace(-3, 
-                    0, #-epsilon, 
+                    2, #-epsilon, 
                     ny)
     ts= get_new_transport_simulation(fraction_complex_NPC_traverse_per_sec=1.)
     for key in param_range.keys():
@@ -268,10 +268,10 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-param_range, stats_grids= map_param_grid_parallel(nx= 4,
-                                        ny= 10,
+param_range, stats_grids= map_param_grid_parallel(nx= 5,
+                                        ny= 8,
 #                                       is_reset=True, 
-                                        equilibration_time_sec= 150.0,
+                                        equilibration_time_sec= 100.0,
                                         n_processors=6)
 ratios= get_N_to_C_ratios(stats_grids, 
                           v_N_L= ts.get_v_N_L(), 
@@ -339,36 +339,30 @@ multiprocessing.cpu_count()
 ```
 
 ```{python}
-complexL_N_fraction= stats_grids["complexL_N"]/(stats_grids["complexL_N"]+stats_grids["freeL_N"])
-complexL_C_fraction= stats_grids["complexL_C"]/(stats_grids["complexL_C"]+stats_grids["freeL_C"])
-
-
-##### Contourf
-vmax=1.0
-plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, complexL_C_fraction, 
-             vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,11), extend='both')
-ax= plt.gca()
-ax.set_xscale('log')
-ax.set_yscale('log')
-#ax.set_yscale('log')
-ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
-ax.set_ylabel("importin binding rate [$s^{-1}$]")
-xlim= ax.get_xlim()
-ylim= ax.get_ylim()
-ax.set_xlim(xlim[1], xlim[0])
-#ax.set_ylim(ylim[1], ylim[0])
-print(ax.get_xticks())
-#ax.set_xticklabels(["{:.1f}".format(xtick) for xtick in param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"]])
-#ax.set_yticklabels(["{:.2f}".format(ytick) for ytick in param_range["rate_free_C_to_complex_C_per_sec"]])
-cb = plt.colorbar(label="bound fraction (C)")
-ticks = cb.get_ticks()
-cb.set_ticks(ticks)
-
-#ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
-#ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
-
-#cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
+for compartment in ['N', 'C']:
+    tag_complex= f"complexL_{compartment}"
+    tag_free= f"freeL_{compartment}"
+    complexL_fraction= stats_grids[tag_complex]/(stats_grids[tag_complex]+stats_grids[tag_free])
+    ##### Contourf
+    vmax=1.0
+    plt.figure()
+    plt.contourf(x_meshgrid, y_meshgrid, complexL_fraction, 
+                 vmin=0.0, vmax=vmax, levels=np.linspace(0,vmax,11), extend='both')
+    ax= plt.gca()
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
+    ax.set_ylabel("importin binding rate [$s^{-1}$]")
+    xlim= ax.get_xlim()
+    ylim= ax.get_ylim()
+    ax.set_xlim(xlim[1], xlim[0])
+    #ax.set_ylim(ylim[1], ylim[0])
+    print(ax.get_xticks())
+    
+    cb = plt.colorbar()#label=f"bound fraction ({compartment})")
+    ax.set_title(f"bound fraction ({compartment})")
+    ticks = cb.get_ticks()
+    cb.set_ticks(ticks)
 
 ```
 
@@ -432,11 +426,14 @@ _=plt.legend()
 ```
 
 ```{python}
-plt.plot(stats['complexL_NPC'])
+plt.plot(stats['complexL_NPC_N_import'] +
+        stats['complexL_NPC_N_export'] +
+        stats['complexL_NPC_C_import'] +
+        stats['complexL_NPC_C_export'])
 ```
 
 ```{python}
-0.005e5<0.005e6
+
 ```
 
 ```{python}
