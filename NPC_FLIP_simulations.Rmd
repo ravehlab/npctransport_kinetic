@@ -12,6 +12,10 @@ jupyter:
     name: python3
 ---
 
+```{python}
+import tes
+```
+
 <!-- #region id="0dYkHdxwg_v_" -->
 # Model variables - legend:
 <!-- #endregion -->
@@ -66,15 +70,6 @@ def time_series(sim_time_sec, attributes, n_skip=10, dt_sec=1e-3, **kwargs):
   ts= TransportSimulation(**kwargs)
   ts.bleach_start_time_sec= 100.0
   ts.dt_sec= dt_sec
-  ##### DEBUG
-  DEBUG= False
-  if DEBUG:
-      init_params= {"Ran_cell_M": 20e-6}
-      ts= get_new_transport_simulation(**init_params)
-      ts.set_params(
-        max_passive_diffusion_rate_nmol_per_sec_per_M  = 2e+7,
-        fraction_complex_NPC_traverse_per_sec = 1.0)        
-  ##### DEBUG
   n= int(np.ceil(sim_time_sec / ts.dt_sec))
   print(f"Running for n={n} time steps")
   n_frames= int(np.floor(n/n_skip)) + 1 
@@ -131,7 +126,7 @@ def plot_simulation_attributes(sim_time_sec,
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 100.0
+sim_time_sec= 10.0
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC_C_import', 'complexL_NPC_C_export',
                     'complexL_NPC_N_import', 'complexL_NPC_N_export',
@@ -149,8 +144,8 @@ dock_attributes = ['c_C_M', 'fraction_C_b', 'nmol_NPC', 'NPC_dock_capacity']
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
 is_log= False
-sim_flags= dict(rate_free_to_complex_per_sec=1.0,
-                max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
+sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
+                #max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
 ax, x, c= plot_simulation_attributes(sim_time_sec, 
                            [ RAN_attributes, 
                              cargoL_attributes, 
@@ -257,11 +252,12 @@ import multiprocessing
 def mp_do_simulation(param_range, i, j, 
                      equilibration_time_sec):
     init_params= {"Ran_cell_M": 20e-6}
+    nskip_statistics= 100
     my_ts= get_new_transport_simulation(**init_params)
     my_ts.set_params(
         max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
         rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
-    stats = my_ts.simulate(equilibration_time_sec)   
+    stats = my_ts.simulate(equilibration_time_sec, nskip_statistics= 100)   
     return {"i":i, "j":j, "stats":stats}
 
 def mp_handle_stats(stats_grids, mydicts):
