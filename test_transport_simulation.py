@@ -14,7 +14,6 @@ class TestTransport_Simulation(unittest.TestCase):
     def test_simple_simulation(self):
         # TODO: make this more interesting
         ts= transport_simulation.TransportSimulation()
-        ts.bleach_start_time_sec= 100.0
         ts.dt_sec= 1e-3
         sim_time_sec= 0.1
         n_skip= 1
@@ -72,6 +71,19 @@ class TestTransport_Simulation(unittest.TestCase):
         for key,expected_v in expected_stats.items():
             for x,y in zip(stats[key], expected_v):
                 self.assertTrue(np.isclose(x, y, atol= 1e-12, rtol=1e-5))
-        
+
+    def test_constant_cargo(self, nsteps=1000):
+        ts= transport_simulation.TransportSimulation()
+        for i in range(nsteps):
+            RAN = ts.get_total_RAN()
+            cargo = ts.get_total_cargo_nmol()
+            ts.do_one_time_step()
+            RAN_after = ts.get_total_RAN()
+            cargo_after = ts.get_total_cargo_nmol()
+            self.assertAlmostEqual(RAN, RAN_after, places=1)
+            self.assertAlmostEqual(cargo, cargo_after, places=1)
+
+
+                
 if __name__ == '__main__':
     unittest.main()

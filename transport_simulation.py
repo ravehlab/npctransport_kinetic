@@ -720,7 +720,7 @@ class TransportSimulation():
         # Update simulation clock:
         self.sim_time_sec += self.dt_sec
 
-    def simulate(self, sim_time_sec, nskip_statistics= 10):
+    def simulate(self, sim_time_sec, nskip_statistics= 1):
         ''' 
         simulate for approximately (and at least) sim_time_sec seconds
         @return actual time simulated
@@ -760,17 +760,3 @@ class TransportSimulation():
     
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
-
-    def constant_test(self, nsteps=1000):
-        for i in range(nsteps):
-            RAN = self.get_total_RAN()
-            cargo = self.get_total_cargo_nmol()
-            self.do_one_time_step()
-            RAN_after = self.get_total_RAN()
-            cargo_after = self.get_total_cargo_nmol()
-            if np.abs(RAN - RAN_after)>0.1:
-                print(i, f"Ran mismatch: {RAN}, {RAN_after}")
-            if np.abs(cargo - cargo_after)>0.1:
-                print(i, f"cargo mismatch: {cargo}, {cargo_after}")
-
-
