@@ -162,7 +162,7 @@ class TransportSimulation():
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
         self.fraction_complex_NPC_traverse_per_sec = 1e+7 # fraction of complexes that go from one side of the NPC to the other per sec
         self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
-        self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6 * 2 # TODO: this is doubled relative to complex_N to free_N
+        self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6 # TODO: this is doubled relative to complex_N to free_N
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
         self.fraction_complex_NPC_to_complex_N_C_per_sec= 1.0 # Leakage parameter
         self.rate_GDP_N_to_GTP_N_per_sec= 200.0
