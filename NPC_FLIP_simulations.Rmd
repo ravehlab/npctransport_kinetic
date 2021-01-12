@@ -12,8 +12,10 @@ jupyter:
     name: python3
 ---
 
+# Unit testing
+
 ```{python}
-import tes
+# !python test_transport_simulation.py
 ```
 
 <!-- #region id="0dYkHdxwg_v_" -->
@@ -338,8 +340,8 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-param_range, stats_grids= map_param_grid_parallel(nx= 4,
-                                        ny= 4,
+param_range, stats_grids= map_param_grid_parallel(nx= 6,
+                                        ny= 13,
 #                                       is_reset=True, 
                                         equilibration_time_sec= 100.0,
                                         n_processors=6)
@@ -355,7 +357,7 @@ print(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"])
 ```{python id="XQvFv3M-NYJN"}
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
-vmax=4
+vmax=12
 x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
                                      param_range["rate_free_to_complex_per_sec"])
 
@@ -414,35 +416,47 @@ for compartment in ['N', 'C']:
 
 ```
 
+# Map NLS strength, MW size, force
+
 ```{python}
-def get_ts_parameters(MW=27, 
-                      NLS_strength=0, 
-                      force=False, 
+import numpy as np
+import transport_simulation
+
+def get_ts_parameters(MW= 27, 
+                      NLS_strength= 0, 
+                      is_force= False, 
                       **kwargs):
     ts = TransportSimulation(**kwargs)
-    diffusion_rate = get_diffusion_rate(MW)
+    passive_diffusion_rate = get_diffusion_rate(MW, is_force)
     free_to_complex_rate = get_free_to_complex_rate(NLS_strength)
     ts.set_passive_diffusion_rate_per_sec(diffusion_rate)
     ts.set_params(rate_free_to_complex_per_sec=free_to_complex_rate)
 
-    if force:
-        diffusion_rate += get_force_effect_on_diffusion(MW)
+    if is_force:
         force_effect = get_force_effect_on_import(MW, NLS_strength)
+#        NPC_transport_rate = ts.fraction_complex_NPC_traverse_per_sec + force_effect
         NPC_transport_rate = ts.fraction_complex_NPC_traverse_per_sec + force_effect
         ts.set_params(fraction_complex_NPC_traverse_per_sec=NPC_transport_rate)
     return ts
 
 def get_free_to_complex_rate(NLS_strength):
-    rates = [0.00, #0.07
-             0.2, #2.11
-             0.3  #16.4
+    rates = [0.0,
+             0.002, #0.07
+             0.02, #2.11
+             0.2  #16.4
             ]
     return rates[NLS_strength]
 
-def get_diffusion_rate(MW):
+def get_passiv_diffusion_rate(MW, is_force):
     #TODO: generalize this - either from the literature or regression
-    rates = {27:0.07624291, 41:0.0560286, 54:0.03452787, 67:0.03022162}
-    return rates[MW]
+    base_rates={ 27:0.07624291, 
+                41:0.0560286, 
+                54:0.03452787, 
+                67:0.03022162 }
+    rate= base_rates[MW]
+    if is_force:
+        rate += get_force_effect_on_diffusion(MW)
+    return rate
 
 def get_force_effect_on_diffusion(MW):
     """
@@ -456,24 +470,109 @@ def get_force_effect_on_diffusion(MW):
 
 def get_force_effect_on_import(MW, NLS_strength):
     NPC_transport_rates = {}
-    NPC_transport_rates[27] = [0, 0.2, 0.5]
-    NPC_transport_rates[41] = [0, 0.2, 0.5]
-    NPC_transport_rates[54] = [0, 0.2, 0.5]
-    NPC_transport_rates[67] = [0, 0.2, 0.5]
+    NPC_transport_rates[27] = [0, 0, 0.2, 0.5]
+    NPC_transport_rates[41] = [0, 0, 0.2, 0.5]
+    NPC_transport_rates[54] = [0, 0, 0.2, 0.5]
+    NPC_transport_rates[67] = [0, 0, 0.2, 0.5]
     return NPC_transport_rates[MW][NLS_strength]
 
 ```
 
 ```{python}
+def get_compartment_nmol_stats(ts, 
+                               stats, 
+                               compartment):
+    assert(compartment in ['N','C'])
+    nframes= len(stats['time_sec'])
+    nmol_stats= np.zeros(nframes)
+    for state in ['free','complex']:
+        for label in ['L','U']:
+            tag= '{}{}_{}'.format(state, 
+                                  label, 
+                                  compartment)
+            nmol_stats = nmol_stats + stats[tag]
+    return nmol_stats
 
+def get_compartment_concentration_stats(ts, 
+                                        stats, 
+                                        compartment):
+    assert(compartment in ['N','C'])
+    nmol_stats= get_compartment_nmol_stats(ts, 
+                                           stats, 
+                                           compartment)
+    is_nuclear= (compartment=='N')
+    volume_L= (ts.get_v_N_L() if is_nuclear else ts.get_v_C_L())
+    return (nmol_stats/transport_simulation.N_A)/volume_L
+
+def get_N_C_ratio_stats(ts, stats):
+    EPSILON= 1E-12
+    c_N_stats= get_compartment_concentration_stats(ts, 
+                                                   stats, 
+                                                   'N')
+    c_C_stats= get_compartment_concentration_stats(ts, 
+                                                   stats, 
+                                                   'C')
+    return c_N_stats/c_C_stats
+```
+
+```{python}
 import matplotlib.pyplot as plt
-for i in range(1,3):
-    ts = get_ts_parameters(NLS_strength=i, fraction_complex_NPC_to_free_N_per_M_GTP_per_sec=0.005e7)
-    #ts.set_params(dt_sec=1e-3)
+
+fig, ax= plt.subplots(3, 1, figsize=(5,15))
+for i in range(4):
+    ts = get_ts_parameters(MW=41,
+                            NLS_strength=i,
+                          force= False)#, 
+#                           fraction_complex_NPC_to_free_N_per_M_GTP_per_sec=1*0.005e6)
+    ts.set_params(dt_sec=1e-3)
+#    ts.bleach_start_time_sec= 100
     stats = ts.simulate(50)
-    plt.plot(stats['import_L'][20000:], label=i)
-plt.title("Active import")
-_=plt.legend()
+    plot_from_sec= 1
+    plot_from_frame= int(plot_from_sec/ts.dt_sec)
+    x= stats['time_sec'][plot_from_frame:]
+    ys={}
+    ys[0]= stats['import_L'][plot_from_frame:]
+    ys[1]= stats['export_L'][plot_from_frame:]
+    ys[2]= get_N_C_ratio_stats(ts, stats)[plot_from_frame:]
+    for j, cur_ax in enumerate(ax):
+        cur_ax.plot(x, ys[j],
+        label= get_free_to_complex_rate(i))
+    cur_ax.set_xlabel(r"time [$sec$]")
+    lh= cur_ax.legend()
+    lh.set_title('NLS_strength')
+ax[0].set_ylabel(r"Active import [$sec^{-1}$]")
+ax[1].set_ylabel(r"Active export [$sec^{-1}$]")
+ax[2].set_ylabel("N/C ratio")
+```
+
+```{python}
+import matplotlib.pyplot as plt
+
+fig, ax= plt.subplots(3, 1, figsize=(5,15))
+for i in range(4):
+    ts = get_ts_parameters(MW=41,
+                            NLS_strength=i,
+                          force= True)#, 
+#                           fraction_complex_NPC_to_free_N_per_M_GTP_per_sec=1*0.005e6)
+    ts.set_params(dt_sec=1e-3)
+#    ts.bleach_start_time_sec= 100
+    stats = ts.simulate(50)
+    plot_from_sec= 1
+    plot_from_frame= int(plot_from_sec/ts.dt_sec)
+    x= stats['time_sec'][plot_from_frame:]
+    ys={}
+    ys[0]= stats['import_L'][plot_from_frame:]
+    ys[1]= stats['export_L'][plot_from_frame:]
+    ys[2]= get_N_C_ratio_stats(ts, stats)[plot_from_frame:]
+    for j, cur_ax in enumerate(ax):
+        cur_ax.plot(x, ys[j],
+        label= get_free_to_complex_rate(i))
+    cur_ax.set_xlabel(r"time [$sec$]")
+    lh= cur_ax.legend()
+    lh.set_title('NLS_strength')
+ax[0].set_ylabel(r"Active import [$sec^{-1}$]")
+ax[1].set_ylabel(r"Active export [$sec^{-1}$]")
+ax[2].set_ylabel("N/C ratio")
 ```
 
 ```{python}
@@ -503,8 +602,8 @@ for tag in ['import', 'export']:
     plt.figure()
     plt.contourf(x_meshgrid, 
                  y_meshgrid, 
-                 stats_grids[f'{tag}_U']+stats_grids[f'{tag}_U'])
-                 #ratios_import_export) #, vmin=1.0, vmax=vmax, levels=np.linspace(1.0,vmax,21), extend='both')
+#                 stats_grids[f'{tag}_U']+stats_grids[f'{tag}_U'])
+                 ratios_import_export) #, vmin=1.0, vmax=vmax, levels=np.linspace(1.0,vmax,21), extend='both')
     ax= plt.gca()
     ax.set_xscale('log')
     ax.set_yscale('log')
