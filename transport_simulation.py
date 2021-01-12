@@ -171,7 +171,7 @@ class TransportSimulation():
         self.rate_GTP_N_to_GTP_C_per_sec = 0.15
         self.rate_GDP_C_to_GDP_N_per_sec = 0.2
         self.rate_GDP_N_to_GDP_C_per_sec = 0.2
-        self.rate_complex_C_to_free_C_per_sec = 0.05       
+        self.rate_complex_to_free_per_sec = 0.05
         self.rate_free_to_complex_per_sec = 0.10 # assuming importins are not rate limiting in either cytoplasm aor nucleus and have identical concentration
         self.passive_competition_weight= 0.0 # a number between 0.0 and 1.0 quantifying the weight of competition # TODO: this could be a flag
         self.max_passive_diffusion_rate_nmol_per_sec_per_M= 20000 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
@@ -230,13 +230,13 @@ class TransportSimulation():
 
     @register_update()
     def get_nmol_complex_NPC_to_free_N(self, T_list):
+        """                                                                                                        
+        Number of labeled cargo molecules released from the NPC to the nucleus over a self.dt_sec time step        
+        (Note: it is assumed each undocking leads to export of a single RanGTP molecule)                           
+                                                                                                                   
+        Return: dictionary with number of molecules to add/subtract from each species                              
         """
-        Number of labeled cargo molecules released from the NPC to the nucleus over a self.dt_sec time step
-        (Note: it is assumed each undocking leads to export of a single RanGTP molecule)
-
-        Return: dictionary with number of molecules to add/subtract from each species
-        """
-        #return float(int(np.power(nmol_GTP_N/max_RAN, 5)*nmol_NPC))
+        #return float(int(np.power(nmol_GTP_N/max_RAN, 5)*nmol_NPC))                                               
         f= self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec  \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
@@ -255,25 +255,28 @@ class TransportSimulation():
                            src="GTP_N",
                            dst="GTP_C",
                            nmol=n_GTP)
-               
-
+   
+    
     @register_update()
     def get_nmol_complex_N_to_free_N(self, T_list):
         """
         Number of labeled cargo molecules that disassemble in the nucleus over a self.dt_sec time step
-        Note: it is assumed each undocking leads to export of a single RanGTP molecule instantaneously
+        Note: it is assumed each GTP-dependent undocking leads to export of a single RanGTP molecule instantaneously
 
         Return: dictionary with number of molecules to add/subtract from each species
         """
-        c_GTP_N_M= self.get_concentration_M("GTP_N")
-        f= self.fraction_complex_N_to_free_N_per_M_GTP_per_sec \
+        f_GTP= self.fraction_complex_N_to_free_N_per_M_GTP_per_sec \
             * self.get_concentration_M("GTP_N") \
             * self.dt_sec
-        nL= f * self.nmol["complexL_N"] 
-        nU= f * self.nmol["complexU_N"] 
-        n= nL+nU                      
+        f_no_GTP= (1.0 - f_GTP) \
+            * self.rate_complex_to_free_per_sec \
+            * self.dt_sec  # non-GTP dependent undocking from remaining fraction
+        f= f_GTP # + f_no_GTP
+        nL= f * self.nmol["complexL_N"]
+        nU= f * self.nmol["complexU_N"]
+        n_GTP= f_GTP * (self.nmol["complexL_N"] + self.nmol["complexU_N"])
         #     print("n {} GTP_N {} complex_N {}".format(n, self.nmol["GTP_N"], self.nmol["complex_N"]))
-        assert n <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_N"] and nU <= self.nmol["complexU_N"]            
+        assert n_GTP <= self.nmol["GTP_N"] and nL <= self.nmol["complexL_N"] and nU <= self.nmol["complexU_N"]
         register_move_nmol(T_list,
                    src="complexL_N",\
                    dst="freeL_N",\
@@ -285,7 +288,8 @@ class TransportSimulation():
         register_move_nmol(T_list,
                    src="GTP_N",\
                    dst="GTP_C",\
-                   nmol=n)
+                   nmol=n_GTP)
+            
 
     @register_update()
     def get_nmol_GDP_N_to_GTP_N(self, T_list):
@@ -363,7 +367,7 @@ class TransportSimulation():
 
         Return: dictionary with number of molecules to add/subtract from each species
         """
-        f= self.rate_complex_C_to_free_C_per_sec \
+        f= self.rate_complex_to_free_per_sec \
             * self.dt_sec
         nL= f * self.nmol["complexL_C"]
         nU= f * self.nmol["complexU_C"]
@@ -760,3 +764,5 @@ class TransportSimulation():
     
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
+
+
