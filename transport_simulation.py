@@ -754,7 +754,7 @@ class TransportSimulation():
 
     def get_total_cargoL_nmol(self):
         def is_cargoL(s):
-            return s.startswif_Gth("freeL_") or s.startswith("complexL_")
+            return s.startswith("freeL_") or s.startswith("complexL_")
         return sum([self.nmol[key] for key in self.nmol if is_cargoL(key)])
         
     def get_total_cargoU_nmol(self):
