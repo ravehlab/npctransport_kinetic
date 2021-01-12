@@ -140,12 +140,13 @@ class TransportSimulation():
     ###################
     # Consturctor (and init functions)
     ###################
-    def set_passive_diffusion_rate_per_sec(self, rate):
+    def set_passive_export_rate_per_sec(self, rate):
         '''
-        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the percent of 
-        molecules that passively diffuse per second is the argument 'rate'
+        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the rate at which a 
+        molecule passively diffuses per second from the nucleus to the cytoplasmis the argument 'rate' 
+        (note the rate is different for passive diffusion from the nucleus due to volume differences )
         '''
-        self.max_passive_diffusion_rate_nmol_per_sec_per_M = rate*N_A*self.v_N_L
+        self.max_passive_diffusion_rate_nmol_per_sec_per_M = rate*N_A*self.v_N_L # convert per_M to per_nmol (so cancels nmol)
 
     def set_params(self, **kwargs):
         for param, value in kwargs.items():
@@ -200,7 +201,8 @@ class TransportSimulation():
         self.nmol["complexU_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
         # Cytoplasm:
         self.set_concentration_M("cargo_C", 50e-6)  # Nuclear concentration of labeled cargo in M
-        self.nmol["complexL_C"]=  self.get_nmol("cargo_C")*0.25 # number of cargo-importin complexes in cytoplasm (labeled)
+        init_fraction_bound= 0.0
+        self.nmol["complexL_C"]=  init_fraction_bound*self.get_nmol("cargo_C") # number of cargo-importin complexes in cytoplasm (labeled)
         self.nmol["freeL_C"]= self.nmol["cargo_C"] - self.nmol["complexL_C"] # number of free cargo molecules in cytoplasm (labeled)
         self.nmol["complexU_C"]= 0 # (unlabeled)
         self.nmol["freeU_C"]= 0 # (unlabeled)
@@ -448,7 +450,6 @@ class TransportSimulation():
         f= self.max_passive_diffusion_rate_nmol_per_sec_per_M \
             * competition_multiplier \
             * self.dt_sec
-
         nL_export = f * self.get_concentration_M("freeL_N")  
         nL_import = f * self.get_concentration_M("freeL_C")
         nU_export = f * self.get_concentration_M("freeU_N")  
@@ -686,15 +687,14 @@ class TransportSimulation():
                                                                 and label in key
                                                                 and not "NPC" in key
                                                                 and not "G" in key])
-
             if total_N == 0:
-                self.nmol[f"import_{label}"] = 0
-            else:
-                self.nmol[f"import_{label}"] = (active_import[label] + passive_import[label])/(total_N*self.dt_sec)
-            if total_C == 0:
                 self.nmol[f"export_{label}"] = 0
             else:
-                self.nmol[f"export_{label}"] = (active_export[label] + passive_export[label])/(total_C*self.dt_sec)
+                self.nmol[f"export_{label}"] = (active_export[label] + passive_export[label])/(total_N*self.dt_sec)
+            if total_C == 0:
+                self.nmol[f"import_{label}"] = 0
+            else:
+                self.nmol[f"import_{label}"] = (active_import[label] + passive_import[label])/(total_C*self.dt_sec)
 
 
     def do_one_time_step(self):
@@ -706,6 +706,8 @@ class TransportSimulation():
         for update_rule in self._update_funcs:
             update_rule(self, T_list)
         T= self.get_nmol_T_summary(T_list)
+#        print("Do_step")
+#        print(T_list)
         self.get_import_export_summary(T_list)
 
         # Update transitions:
