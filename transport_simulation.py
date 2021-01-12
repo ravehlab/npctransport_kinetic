@@ -271,7 +271,7 @@ class TransportSimulation():
         f_no_GTP= (1.0 - f_GTP) \
             * self.rate_complex_to_free_per_sec \
             * self.dt_sec  # non-GTP dependent undocking from remaining fraction
-        f= f_GTP # + f_no_GTP
+        f= f_GTP + f_no_GTP
         nL= f * self.nmol["complexL_N"]
         nU= f * self.nmol["complexU_N"]
         n_GTP= f_GTP * (self.nmol["complexL_N"] + self.nmol["complexU_N"])
@@ -754,7 +754,7 @@ class TransportSimulation():
 
     def get_total_cargoL_nmol(self):
         def is_cargoL(s):
-            return s.startswith("freeL_") or s.startswith("complexL_")
+            return s.startswif_Gth("freeL_") or s.startswith("complexL_")
         return sum([self.nmol[key] for key in self.nmol if is_cargoL(key)])
         
     def get_total_cargoU_nmol(self):
