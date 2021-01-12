@@ -62,6 +62,7 @@ class TestTransport_Simulation(unittest.TestCase):
              'GDP_C': [ 78231.27018701,  93053.56259274,  99692.56825052, 102641.22060322]
              }
         ts= transport_simulation.TransportSimulation()
+        ts.set_params(fraction_complex_NPC_to_free_N_per_M_GTP_per_sec= 0.010e+6)
         ts.bleach_start_time_sec= 100.0
         ts.dt_sec= 1e-3 
         sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
@@ -87,3 +88,4 @@ class TestTransport_Simulation(unittest.TestCase):
                 
 if __name__ == '__main__':
     unittest.main()
+\
