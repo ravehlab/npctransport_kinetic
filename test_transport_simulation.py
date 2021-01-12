@@ -3,7 +3,9 @@
 import unittest
 import transport_simulation 
 import numpy as np
+from numpy import array
 
+# +
 class TestTransport_Simulation(unittest.TestCase):
      
     def test_fL_to_L(self):
@@ -36,31 +38,31 @@ class TestTransport_Simulation(unittest.TestCase):
     def test_simulation(self):
         
         expected_stats= \
-            {'time_sec': np.array([1.000e-03, 2.501e+00, 5.001e+00, 7.501e+00]), 
-             'complexL_NPC_N_import': np.array([    0.        , 21624.82871907, 21267.58400813, 21155.07290699]), 
-             'complexL_NPC_C_import': np.array([  625.        , 21682.07622186, 21323.44677205, 21209.84595497]), 
-             'complexU_NPC_N_import': np.array([0., 0., 0., 0.]), 
-             'complexU_NPC_C_import': np.array([0., 0., 0., 0.]), 
-             'complexL_NPC_N_export': np.array([    0.        , 13466.96758474, 17038.67805727, 18980.21813115]), 
-             'complexL_NPC_C_export': np.array([    0.        , 13435.5924849 , 17002.72500676, 18941.09400388]), 
-             'complexU_NPC_N_export': np.array([0., 0., 0., 0.]), 
-             'complexU_NPC_C_export': np.array([0., 0., 0., 0.]), 
-             'complexL_C': np.array([74668.81875   , 20101.80884471, 25377.20385103, 29643.56416695]), 
-             'freeL_C': np.array([225806.1805    , 178125.28595829, 141255.45742185, 113072.97871725]), 
-             'complexU_C': np.array([0., 0., 0., 0.]), 
-             'freeU_C': np.array([0., 0., 0., 0.]), 
-             'complexL_N': np.array([   0.        , 4382.17353   , 6392.74622079, 8215.18778046]), 
-             'freeL_N': np.array([7.50000000e-04, 2.82812667e+04, 5.14421587e+04, 6.98820383e+04]), 
-             'complexU_N': np.array([0., 0., 0., 0.]), 
-             'freeU_N': np.array([0., 0., 0., 0.]), 
-             'import_L': np.array([0.        , 0.89455947, 0.48334772, 0.35167244]), 
-             'export_L': np.array([0.        , 0.06776401, 0.10202806, 0.13271156]), 
-             'import_U': np.array([0., 0., 0., 0.]), 
-             'export_U': np.array([0., 0., 0., 0.]), 
-             'GTP_N': np.array([78196.06103896, 63347.38643075, 56758.89447587, 53855.74247128]), 
-             'GTP_C': np.array([50.83506494, 45.15307355, 43.10669637, 42.53502578]), 
-             'GDP_N': np.array([ 93.83370909, 156.2144111 , 156.21645831, 156.2170304 ]), 
-             'GDP_C': np.array([ 78231.27018701,  93023.2460846 ,  99613.78236945, 102517.50547255])
+            {'time_sec': array([1.000e-03, 2.501e+00, 5.001e+00, 7.501e+00]), 
+             'complexL_NPC_N_import': array([    0.        , 15239.18509368, 19158.28537664, 20402.53909047]), 
+             'complexL_NPC_C_import': array([    0.        , 15287.69916179, 19211.99563442, 20456.99930688]), 
+             'complexU_NPC_N_import': array([0., 0., 0., 0.]), 
+             'complexU_NPC_C_import': array([0., 0., 0., 0.]), 
+             'complexL_NPC_N_export': array([    0.        ,  6490.57957647, 12676.39355691, 16353.10477062]), 
+             'complexL_NPC_C_export': array([    0.        ,  6471.41018374, 12647.33483225, 16318.21182419]), 
+             'complexU_NPC_N_export': array([0., 0., 0., 0.]), 
+             'complexU_NPC_C_export': array([0., 0., 0., 0.]), 
+             'complexL_C': array([   30.11      ,  9006.61140819, 15560.61813652, 21813.31804998]), 
+             'freeL_C': array([301069.889     , 235126.55119532, 184485.65932088, 145763.83104942]), 
+             'complexU_C': array([0., 0., 0., 0.]), 
+             'freeU_C': array([0., 0., 0., 0.]), 
+             'complexL_N': array([   0.        , 1398.96732942, 3346.73873462, 5487.54771013]), 
+             'freeL_N': array([1.00000000e-03, 1.20789961e+04, 3.40129744e+04, 5.45044482e+04]), 
+             'complexU_N': array([0., 0., 0., 0.]), 
+             'freeU_N': array([0., 0., 0., 0.]), 
+             'import_L': array([0.        , 1.59948125, 0.69655085, 0.44976187]), 
+             'export_L': array([0.        , 0.02649327, 0.06320976, 0.09736769]), 
+             'import_U': array([0., 0., 0., 0.]), 
+             'export_U': array([0., 0., 0., 0.]), 
+             'GTP_N': array([78196.06103896, 74770.68735182, 64671.25396217, 58224.01573541]), 
+             'GTP_C': array([50.83506494, 40.991402  , 43.39131566, 42.92777012]), 
+             'GDP_N': array([ 93.83370909, 156.21858551, 156.21617624, 156.2166379 ]), 
+             'GDP_C': array([78231.27018701, 81604.10266066, 91701.13854594, 98148.83985657])
             }
         ts= transport_simulation.TransportSimulation()
         ts.set_params(fraction_complex_NPC_to_free_N_per_M_GTP_per_sec= 0.010e+6)
@@ -85,6 +87,9 @@ class TestTransport_Simulation(unittest.TestCase):
             cargo_after = ts.get_total_cargo_nmol()
             self.assertAlmostEqual(RAN, RAN_after, places=1)
             self.assertAlmostEqual(cargo, cargo_after, places=1)
+            
+
+# -
 
 
 
