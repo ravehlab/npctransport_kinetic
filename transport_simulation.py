@@ -662,10 +662,10 @@ class TransportSimulation():
             is_facilitated_transport = ("NPC" in src and not "NPC" in dst)
             is_passive_diffusion = ("free" in src and "free" in dst)
             if is_facilitated_transport:
-                if "N" in dst and "import" in src:
-                    active_import[label] += nmol
-                if "C" in dst and "export" in src:
+                if "_C" in dst and "export" in src:
                     active_export[label] += nmol
+                if "_N" in dst and "import" in src:
+                    active_import[label] += nmol
 
             
             elif is_passive_diffusion:
