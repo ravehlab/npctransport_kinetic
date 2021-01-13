@@ -140,14 +140,25 @@ class TransportSimulation():
     ###################
     # Consturctor (and init functions)
     ###################
-    def set_passive_export_rate_per_sec(self, rate):
+    def set_passive_nuclear_molar_rate_per_sec(self, rate_per_sec):
         '''
-        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the rate at which a 
-        molecule passively diffuses per second from the nucleus to the cytoplasmis the argument 'rate' 
-        (note the rate is different for passive diffusion from the nucleus due to volume differences )
+        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the rate of molar passive import
+        to the nucleus is rate*[C] per second, and the rate of raw passive export from the nucleus is rate*[N]
+        (note that the moalr ratio is with respect to the nucleus)
         '''
-        self.max_passive_diffusion_rate_nmol_per_sec_per_M = rate*N_A*self.v_N_L # convert per_M to per_nmol (so cancels nmol)
+        self.max_passive_diffusion_rate_nmol_per_sec_per_M = \
+            rate_per_sec*N_A*self.v_N_L # convert per_M to per_nmol (so cancels nmol)
 
+    def set_passive_cytoplasmic_molar_rate_per_sec(self, rate_per_sec):
+        '''
+        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the rate of molar passive import
+        to the cytoplasm is rate*[N] per second, and the rate of raw passive export from the cytoplasm is rate*[C]
+        (note that the moalr ratio is with respect to the cytoplasm)
+        '''
+        self.max_passive_diffusion_rate_nmol_per_sec_per_M = \
+            rate_per_sec*N_A*self.v_C_L # convert per_M to per_nmol (so cancels nmol)
+        
+        
     def set_params(self, **kwargs):
         for param, value in kwargs.items():
             assert hasattr(self, param)
@@ -155,7 +166,7 @@ class TransportSimulation():
 
     def _init_simulation_parameters(self, **kwargs):
         # TODO: add all simulation parameters here with proper units
-        self.dt_sec = 1e-4 # simulation time step  
+        self.dt_sec = 1e-3 # simulation time step  
         # NPC dock capacity:
         n_NPCs= 200 # (maximal estimate from Timney et al. 2016 paper)
         n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
@@ -188,8 +199,10 @@ class TransportSimulation():
         self.sim_time_sec= 0.0
         self.nmol= {} # number of molecules of various species
         # Cell geometry:
-        self.v_C_L= 10e-15 # Cytoplsmic volume in L
-        self.v_N_L= 3e-15 # Nuclear volume in L
+        self.v_C_L= 55.85e-15 # Cytoplsmic volume in L
+        self.v_N_L= 4.35e-15 # Nuclear volume in L
+#        self.v_C_L= 10e-15 # Cytoplsmic volume in L
+#        self.v_N_L= 5e-15 # Nuclear volume in L
         # NPC:
         self.nmol["complexL_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
         self.nmol["complexL_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
@@ -215,10 +228,10 @@ class TransportSimulation():
         self.nmol["freeU_N"]= 0 # (unlabeled)
         del self.nmol["cargo_N"] 
         # import export per dt_sec
-        self.nmol["import_L"] = 0
-        self.nmol["export_L"] = 0
-        self.nmol["import_U"] = 0
-        self.nmol["export_U"] = 0
+        self.nmol["nuclear_importL_per_sec"] = 0 # molar rate of raw import to the nucleus, given cytoplasmic concentratio (dN/dt=rate*[C])
+        self.nmol["nuclear_exportL_per_sec"] = 0 # molar rate of raw import to the nucleus, given cytoplasmic concentratio (dN/dt=rate*[C])
+        self.nmol["nuclear_importU_per_sec"] = 0 # molar rate of raw import to the nucleus, given cytoplasmic concentratio (dN/dt=rate*[N])
+        self.nmol["nuclear_exportU_per_sec"] = 0 # molar rate of raw import to the nucleus, given cytoplasmic concentratio (dN/dt=rate*[N])
         # Ran in all:
         self.set_RAN_distribution(Ran_cell_M= self.Ran_cell_M, # total physiological concentration of Ran # TODO: check in the literature 
                                   parts_GTP_N=1000,
@@ -688,14 +701,17 @@ class TransportSimulation():
                                                                 and not "NPC" in key
                                                                 and not "G" in key])
             if total_N == 0:
-                self.nmol[f"export_{label}"] = 0
+                self.nmol[f"nuclear_export{label}_per_sec"] = 0
             else:
-                self.nmol[f"export_{label}"] = (active_export[label] + passive_export[label])/(total_N*self.dt_sec)
+                self.nmol[f"nuclear_export{label}_per_sec"] = \
+                    (active_export[label] + passive_export[label])/(total_N*self.dt_sec)
             if total_C == 0:
-                self.nmol[f"import_{label}"] = 0
+                self.nmol[f"nuclear_import{label}_per_sec"] = 0
             else:
-                self.nmol[f"import_{label}"] = (active_import[label] + passive_import[label])/(total_C*self.dt_sec)
-
+                cytoplasmic_import_rate_per_sec = \
+                    (active_import[label] + passive_import[label])/(total_C*self.dt_sec)
+                self.nmol[f"nuclear_import{label}_per_sec"]= \
+                    cytoplasmic_import_rate_per_sec * (self.get_v_C_L()/self.get_v_N_L())
 
     def do_one_time_step(self):
         '''
@@ -766,5 +782,7 @@ class TransportSimulation():
     
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
+
+
 
 
