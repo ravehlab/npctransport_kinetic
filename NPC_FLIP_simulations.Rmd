@@ -200,240 +200,78 @@ axes1[0,0].set_title("normal GDP_N to GTP_N rate")
 ## Map parameters phasespace of transport
 
 ```{python}
-
-def get_tau_passive_diffusion(nmol_per_sec_per_M, volume_L):
-    ''' 
-    This utility function computes tau for one-sided passive diffusion
-    specified in number of molecules per second per M, given
-    the volume from which the passive diffusion leaves
-    '''
-    global N_A
-    gamma= nmol_per_sec_per_M/N_A/volume_L
-    tau= 1.0/gamma
-    return tau
-
-
+import map_param_grid
+importlib.reload(map_param_grid)
 ```
 
 ```{python id="BhUdzBKH675g"}
-def get_new_transport_simulation(**kwargs):
-    ts= TransportSimulation(**kwargs)        
-#    ts.set_params(rate_GDP_C_to_GDP_N_per_sec=7)   
-    ts.set_params(dt_sec=1e-3)
-    return ts
-```
 
-```{python id="BhUdzBKH675g"}
-import multiprocessing
-
-def mp_do_simulation(param_range, i, j, 
-                     equilibration_time_sec):
-    init_params= {"Ran_cell_M": 20e-6}
-    nskip_statistics= 100
-    my_ts= get_new_transport_simulation(**init_params)
-    my_ts.set_params(
-        max_passive_diffusion_rate_nmol_per_sec_per_M  = param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"][i],
-        rate_free_to_complex_per_sec = param_range["rate_free_to_complex_per_sec"][j])        
-    stats = my_ts.simulate(equilibration_time_sec, nskip_statistics= 100)   
-    return {"i":i, "j":j, "stats":stats}
-
-def mp_handle_stats(stats_grids, mydicts):
-    for mydict in mydicts:
-        i= mydict["i"]
-        j= mydict["j"]
-        stats= mydict["stats"]
-#        print("My Handle - ", i, j)
-        for nmol_type in stats.keys():
-            if nmol_type=="time_sec":
-                continue
-            try: 
-                pass
-                stats_grids[nmol_type][j, i]= stats[nmol_type][-1] # matrix is indexed row first 
-            except KeyError:
-                print(f"my_handle_stats - Key {nmol_type} not found")
-            except IndexError as e:
-                print(e)
-
-def mp_handle_error(error):
-    print("Error", error)
-    
-def map_param_grid_parallel(nx,
-                   ny,
-                   equilibration_time_sec= 150.0, # equilibration time per condition
-                   initial_equilibration_time= 300.0, # relevant only if is_reset is False 
-                   n_processors= 5
-                  ):
-    param_range={}
+def get_param_range_D_kon(nx, ny):
+    param_range= {}
     print(f"nx={nx} ny={ny}")
     epsilon = 1e-9
     c_cargo_M= 50e-6 # TODO: fetch this from the simulation
-    param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"] = \
-        np.logspace(2, #0.001+epsilon, 
-                    5, #-epsilon, 
-                    nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
-    param_range["rate_free_to_complex_per_sec"] = \
-        np.logspace(-3, 
-                    0, #-epsilon, 
-                    ny)
-    ts= get_new_transport_simulation()
-    for key in param_range.keys():
-        print("Param {:} default value is {:}".format(key, getattr(ts, key)))
-    stats_grids = {}
-    for nmol_type in ts.nmol.keys(): # TODO: add get_nmols()
-        stats_grids[nmol_type]= np.ndarray((ny, nx)) # Row major - y coordinate goes first
-    jobs_params= []
-    for j in range(ny):
-        for i in range(nx):
-            jobs_params.append((param_range.copy(),
-                                i,
-                                j,
-                                equilibration_time_sec))
-    print("njobs={}".format(len(jobs_params)))
-    callback_function = \
-        lambda mydict: mp_handle_stats(stats_grids, mydict)
-    pool= multiprocessing.Pool(processes= n_processors)
-    results= pool.starmap_async(mp_do_simulation,
-                               jobs_params,
-                               callback= callback_function,
-                               error_callback=mp_handle_error)
-    results.wait()
-    pool.close()
-    pool.join()
-    return param_range, stats_grids
+    param_range['tag_x']= "max_passive_diffusion_rate_nmol_per_sec_per_M"
+    param_range['range_x']= np.logspace(2, 5, nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
+    param_range['pretty_x']= r"passive diffusion rate [$s^{-1} M^{-1}$]"
+    param_range['tag_y']= "rate_free_to_complex_per_sec"
+    param_range['range_y']= np.logspace(-3, 0, ny)
+    param_range['pretty_y']= r"NTR $k_{on}$ [$sec^{-1}$]"
+    return param_range
+    
+def get_param_range_traverse_kon(nx, ny):
+    param_range= {}
+    print(f"nx={nx} ny={ny}")
+    epsilon = 1e-9
+    c_cargo_M= 50e-6 # TODO: fetch this from the simulation
+    param_range['tag_x']= "fraction_complex_NPC_traverse_per_sec"
+    param_range['range_x']= np.logspace(2, 7, nx) # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
+    param_range['tag_y']= "rate_free_to_complex_per_sec"
+    param_range['range_y']= np.logspace(-3, 0, ny)
+    return param_range
 
 ```
 
-```{python id="BhUdzBKH675g"}
-ts = get_new_transport_simulation()
+### Run:
+
+```{python id="Edd4bveu5jph"}
+n_processors= multiprocessing.cpu_count()
+param_range= get_param_range_D_kon(nx= 3, ny= 4)
+stats_grids= map_param_grid.map_param_grid_parallel( param_range,
+                                      equilibration_time_sec= 100.0,
+                                      n_processors= n_processors-2)
+
 ```
 
 ```{python id="Edd4bveu5jph"}
-def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
-    ''' return N/C ratios from stats_grids computed in the previous cell'''
-    nNs= stats_grids["complexL_N"]+stats_grids["freeL_N"]+stats_grids["complexU_N"]+stats_grids["freeU_N"] 
-    nCs= stats_grids["complexL_C"]+stats_grids["freeL_C"]+stats_grids["complexU_C"]+stats_grids["freeU_C"]
-    ratios= (nNs/v_N_L) / (nCs/v_C_L)
-    return ratios
-
-param_range, stats_grids= map_param_grid_parallel(nx= 6,
-                                        ny= 13,
-#                                       is_reset=True, 
-                                        equilibration_time_sec= 100.0,
-                                        n_processors=6)
-ratios= get_N_to_C_ratios(stats_grids, 
-                          v_N_L= ts.get_v_N_L(), 
-                          v_C_L= ts.get_v_C_L())
-```
-
-```{python id="Edd4bveu5jph"}
-print(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"])
+importlib.reload(map_param_grid)
 ```
 
 ```{python id="XQvFv3M-NYJN"}
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
-vmax=12
-x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
-                                     param_range["rate_free_to_complex_per_sec"])
-
-##### Contourf
 plt.figure()
-plt.contourf(x_meshgrid, y_meshgrid, ratios, vmin=1.0, vmax=vmax, levels=np.linspace(1.0,vmax,21), extend='both')
-ax= plt.gca()
-ax.set_xscale('log')
-ax.set_yscale('log')
-ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
-ax.set_ylabel("importin binding rate [$s^{-1}$]")
-xlim= ax.get_xlim()
-ylim= ax.get_ylim()
-ax.set_xlim(xlim[1], xlim[0])
-print(ax.get_xticks())
-cb = plt.colorbar(label="N/C ratio")
-ticks = cb.get_ticks()
-cb.set_ticks(ticks)
-
-
-
-```
-
-```{python}
-multiprocessing.cpu_count()
-```
-
-```{python}
-for compartment in ['N', 'C']:
-    tag_complex= f"complexL_{compartment}"
-    tag_free= f"freeL_{compartment}"
-    complexL_fraction= stats_grids[tag_complex]/(stats_grids[tag_complex]+stats_grids[tag_free])
-    ##### Contourf
-    vmax=1.0
-    plt.figure()
-    plt.contourf(x_meshgrid, y_meshgrid, complexL_fraction, 
-                 vmin=0.0, 
-                 vmax=vmax, 
-                 levels=np.linspace(0,vmax,11), 
-                 extend='both')
-    ax= plt.gca()
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
-    ax.set_ylabel("importin binding rate [$s^{-1}$]")
-    xlim= ax.get_xlim()
-    ylim= ax.get_ylim()
-    ax.set_xlim(xlim[1], xlim[0])
-    #ax.set_ylim(ylim[1], ylim[0])
-    print(ax.get_xticks())
-    
-    cb = plt.colorbar()#label=f"bound fraction ({compartment})")
-    ax.set_title(f"bound fraction ({compartment})")
-    ticks = cb.get_ticks()
-    cb.set_ticks(ticks)
-
-```
-
-```{python}
-def get_import_export_ratios(stats_grids):
-    ''' return import/export ratios from stats_grids computed in the previous cell'''
-    import_rate= stats_grids["import_L"]+stats_grids["import_U"]
-    export_rate= stats_grids["export_L"]+stats_grids["export_U"]
-    ratios= import_rate/export_rate
-    return ratios
-
+# N/C
+map_param_grid.plot_NC_ratios(param_range, stats_grids, ts)
+# Bound fraction
+fig, axes= plt.subplots(2,1, figsize=(4.5,9), sharex=True, sharey=True)
+map_param_grid.plot_bound_fraction(param_range, stats_grids, 'N', ax=axes[0])
+map_param_grid.plot_bound_fraction(param_range, stats_grids, 'C', ax=axes[1])
+# Import/export
+plot_import_export()
 ratios_import_export= get_import_export_ratios(stats_grids)
-    
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
-vmax=4
-x_meshgrid, y_meshgrid = np.meshgrid(param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"],
-                                     param_range["rate_free_to_complex_per_sec"])
-##### Contourf
-for tag in ['import', 'export']:
-    plt.figure()
-    plt.contourf(x_meshgrid, 
-                 y_meshgrid, 
-                 stats_grids[f'{tag}_L'])
-#                 ratios_import_export) #, vmin=1.0, vmax=vmax, levels=np.linspace(1.0,vmax,21), extend='both')
-    ax= plt.gca()
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    #ax.set_yscale('log')
-    ax.set_xlabel(r"passive diffusion rate [$s^{-1} M^{-1}$]")
-    ax.set_ylabel("importin binding rate [$s^{-1}$]")
-    xlim= ax.get_xlim()
-    ylim= ax.get_ylim()
-    ax.set_xlim(xlim[1], xlim[0])
-    #ax.set_ylim(ylim[1], ylim[0])
-    print(ax.get_xticks())
-    #ax.set_xticklabels(["{:.1f}".format(xtick) for xtick in param_range["max_passive_diffusion_rate_nmol_per_sec_per_M"]])
-    #ax.set_yticklabels(["{:.2f}".format(ytick) for ytick in param_range["rate_free_C_to_complex_C_per_sec"]])
-    cb = plt.colorbar(label=tag)
-    ticks = cb.get_ticks()
-    cb.set_ticks(ticks)
+plt.figure()
+plot_param_grid(param_range, 
+                ratios_import_export,
+                Z_label= 'import:export')
+```
 
-    #ax.xaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
-    #ax.yaxis.set_major_formatter(mtick.FormatStrFormatter("%.1f"))
+```{python}
 
-    #cb.set_ticklabels([f'{tick:.0e}' for tick in np.exp(ticks)])
+```
+
+```{python}
+
+
+
 
 
 ```
@@ -496,8 +334,8 @@ def get_force_effect_on_diffusion(MW):
 def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
     rate= { 27: [0.5e+7,    1.0e+7],
             41: [0.4e+7,   0.8e+7],
-            54: [0.375e+7, 0.75e+7],
-            67: [0.35e+7,  0.7e+7] }
+            54: [0.375e+7, 0.8e+7],
+            67: [0.45e+7,  0.7e+7] }
     i_force= 1 if is_force else 0
     return rate[MW][i_force]
 
