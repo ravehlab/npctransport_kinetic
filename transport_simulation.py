@@ -704,14 +704,14 @@ class TransportSimulation():
                 self.nmol[f"nuclear_export{label}_per_sec"] = 0
             else:
                 self.nmol[f"nuclear_export{label}_per_sec"] = \
-                    (active_export[label] + passive_export[label])/(total_N*self.dt_sec)
+                    (active_export[label] + passive_export[label])/(total_N*self.dt_sec) # the rate at which a single nuclear molecule is imported, or equivalently, the ratio between d[N]/dt and [N]
             if total_C == 0:
                 self.nmol[f"nuclear_import{label}_per_sec"] = 0
             else:
                 cytoplasmic_import_rate_per_sec = \
-                    (active_import[label] + passive_import[label])/(total_C*self.dt_sec)
+                    (active_import[label] + passive_import[label])/(total_C*self.dt_sec) # rate at which a single cytoplasmic molecule is imported, or equivalently, the ratio between d[C]/dt and [C]
                 self.nmol[f"nuclear_import{label}_per_sec"]= \
-                    cytoplasmic_import_rate_per_sec * (self.get_v_C_L()/self.get_v_N_L())
+                    cytoplasmic_import_rate_per_sec * (self.get_v_C_L()/self.get_v_N_L()) # from d[C]/dt to d[N]/dt as a function of [C]
 
     def do_one_time_step(self):
         '''
