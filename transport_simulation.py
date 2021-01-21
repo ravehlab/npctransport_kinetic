@@ -54,9 +54,14 @@ class TransportSimulation():
         return self.nmol[species]
 
     def get_compartment(self, species):
-        m= re.search("_([a-zA-Z]*)$", species)
+        ''' return N/C/NPC for various free/complex, None for irregulars'''
+        m= re.search("(NPC_[A-Z]*)_..port$", species)
+        if m is not None:
+            return "NPC"
+        m= re.search("[a-zA-Z*]_([A-Z]*)$", species)
         if m is None:
-            raise ValueError(f"Can't parse compartment from species {species}")
+            return None
+        assert(m.group(1) in ['N','C'])
         return m.group(1)
 
     def get_compartment_volume_L(self, species):
@@ -110,10 +115,28 @@ class TransportSimulation():
         self.nmol["GDP_N"] = nmol_Ran_cell * RAN_distribution[2]
         self.nmol["GDP_C"] = nmol_Ran_cell * RAN_distribution[3]
 
-    def set_v_N_L(self, v_L):
+    def set_v_N_L(self, v_L, 
+                  fix_concentration):
+        '''
+        :param fix_concentration: if true, rescale nmol for nuclear moleculears to fix concentration
+        '''
+        if fix_concentration:
+            s= v_L/self.v_N_L
+            for key, value in self.nmol.items():
+                if self.get_compartment(key)=='N':
+                    self.set_nmol(key, s * value)
         self.v_N_L= v_L
-
-    def set_v_C_L(self, v_L):
+                
+    def set_v_C_L(self, v_L, 
+                  fix_concentration):
+        '''
+        :param fix_concentration: if true, rescale nmol for cytoplasmic moleculears to fix concentration
+        '''
+        if fix_concentration:
+            s= v_L/self.v_C_L
+            for key, value in self.nmol.items():
+                if self.get_compartment(key)=='C':
+                    self.set_nmol(key, s * value)
         self.v_C_L= v_L
 
     def get_v_N_L(self):
@@ -142,19 +165,16 @@ class TransportSimulation():
     ###################
     def set_passive_nuclear_molar_rate_per_sec(self, rate_per_sec):
         '''
-        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the rate of molar passive import
-        to the nucleus is rate*[C] per second, and the rate of raw passive export from the nucleus is rate*[N]
-        (note that the moalr ratio is with respect to the nucleus)
+        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the passive component of 
+        d[N]/dt is rate_per_sec*([C]-[N])
         '''
         self.max_passive_diffusion_rate_nmol_per_sec_per_M = \
             rate_per_sec*N_A*self.v_N_L # convert per_M to per_nmol (so cancels nmol)
 
     def set_passive_cytoplasmic_molar_rate_per_sec(self, rate_per_sec):
         '''
-        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the rate of molar passive import
-        to the cytoplasm is rate*[N] per second, and the rate of raw passive export from the cytoplasm is rate*[C]
-        (note that the moalr ratio is with respect to the cytoplasm)
-        '''
+        Sets the parameter max_passive_diffusion_rate_nmol_per_sec_per_M such that the passive component of 
+        d[C]/dt is rate_per_sec*([C]-[N])     '''
         self.max_passive_diffusion_rate_nmol_per_sec_per_M = \
             rate_per_sec*N_A*self.v_C_L # convert per_M to per_nmol (so cancels nmol)
         
@@ -164,16 +184,20 @@ class TransportSimulation():
             assert hasattr(self, param)
             setattr(self, param, value)
 
+    def set_NPC_dock_sites(self, n_NPCs, 
+                           n_dock_sites_per_NPC #  dock sites for cargo-importin complexes per NPC  # TODO: this may depend on molecule size
+                          ):
+        self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules            
+            
     def _init_simulation_parameters(self, **kwargs):
         # TODO: add all simulation parameters here with proper units
         self.dt_sec = 1e-3 # simulation time step  
-        # NPC dock capacity:
-        n_NPCs= 200 # (maximal estimate from Timney et al. 2016 paper)
-        n_dock_sites_per_NPC= 500 #  dock sites for cargo-importin complexes per NPC, rule of thumb estimate  # TODO: this may depend on molecule size
-        self.NPC_dock_sites = n_NPCs * n_dock_sites_per_NPC # total capacity for cargo-importin complexes in entire NPC, in number of molecules
+        # NPC dock capacity: #TODO
+        self.set_NPC_dock_sites(n_NPCs= 200, 
+                              n_dock_sites_per_NPC= 500) # (maximal estimate from Timney et al. 2016 paper for yeast, nsites are a rule of thumb)
         # Rates:  # TODO: change nmol to nmolec - to prevent confusion between moles and molecules
+        self.rate_complex_to_NPC_per_free_site_per_sec_per_M= 0.5e+6
         self.fraction_complex_NPC_traverse_per_sec = 1e+7 # fraction of complexes that go from one side of the NPC to the other per sec
-        self.rate_complex_to_NPC_per_free_site_per_sec_per_M = 50000.0e+6/self.NPC_dock_sites # the fraction of cargo-importin complexes that will dock to avaialble NPC dock sites per second (from either cytoplasm or nucleus)
         self.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.005e+6 # TODO: this is doubled relative to complex_N to free_N
         self.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.005e+6
         self.fraction_complex_NPC_to_complex_N_C_per_sec= 1.0 # Leakage parameter
@@ -213,13 +237,13 @@ class TransportSimulation():
         self.nmol["complexU_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
         self.nmol["complexU_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
         # Cytoplasm:
-        self.set_concentration_M("cargo_C", 50e-6)  # Nuclear concentration of labeled cargo in M
         init_fraction_bound= 0.0
-        self.nmol["complexL_C"]=  init_fraction_bound*self.get_nmol("cargo_C") # number of cargo-importin complexes in cytoplasm (labeled)
-        self.nmol["freeL_C"]= self.nmol["cargo_C"] - self.nmol["complexL_C"] # number of free cargo molecules in cytoplasm (labeled)
+        self.set_concentration_M("complexL_C", 
+                                 init_fraction_bound*50e-6)  # Nuclear concentration of labeled cargo-importin complex in M
+        self.set_concentration_M("freeL_C", 
+                                 (1.0-init_fraction_bound)*50e-6)  # Nuclear concentration of labeled cargo in M
         self.nmol["complexU_C"]= 0 # (unlabeled)
         self.nmol["freeU_C"]= 0 # (unlabeled)
-        del self.nmol["cargo_C"]
         # Nucleus:
         self.set_concentration_M("cargo_N", 0e-5)  # Nuclear concentration of labeled cargo in M
         self.nmol["complexL_N"] = 0 # number of cargo-importin complexes in nucleus (labeled)
@@ -782,6 +806,12 @@ class TransportSimulation():
     
     def get_total_cargo_nmol(self):
         return self.get_total_cargoL_nmol() + self.get_total_cargoU_nmol()
+
+#
+
+
+
+
 
 
 
