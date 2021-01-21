@@ -69,60 +69,23 @@ from transport_simulation import TransportSimulation
 from matplotlib import pyplot as plt
 import numpy as np
 
-def time_series(sim_time_sec, attributes, n_skip=10, dt_sec=1e-3, **kwargs):
-  '''
-  TODO
-  '''
-  ts= TransportSimulation(**kwargs)
-  ts.bleach_start_time_sec= 100.0
-  ts.dt_sec= dt_sec
-  ts.set_v_N_L(627e-15, True)
-  ts.set_v_C_L(2194e-15, True)
-  ts.set_NPC_dock_sites(n_NPCs= 2000, 
-                        n_dock_sites_per_NPC= 500)
-  ts.bleach_volume_L_per_sec= 100.0e-15
-  n= int(np.ceil(sim_time_sec / ts.dt_sec))   
-  print(f"Running for n={n} time steps")
-  n_frames= int(np.floor(n/n_skip)) + 1 
-  c_arrs = {attr: np.zeros(n_frames) for attr in attributes}
-  i_frame= 0
-  print("Cargo before: {}".format(ts.get_total_cargo_nmol()))
-  for i in range(n):
-    ts.do_one_time_step()
-    if (i % n_skip) == 0:
-      for attr in attributes:
-        c_arrs[attr][i_frame] = ts.get_nmol(attr)
-      i_frame += 1
-  print("Cargo after: {}".format(ts.get_total_cargo_nmol()))
-  return c_arrs
 
-
-def plot_simulation_attributes(sim_time_sec, 
+def plot_simulation_attributes(stats, 
                                attributes_list, 
-                               dt_sec,
-                               n_skip=10, 
-                               log=True, 
-                               **kwargs):
+                               log=True):
   def merge_lists(lists):
       return [x for y in lists for x in y]
   attributes= merge_lists(attributes_list)
   assert(len(attributes) == sum([len(x) for x in attributes_list]))
-  c = time_series(sim_time_sec, 
-                  attributes, 
-                  n_skip= n_skip,
-                  dt_sec= dt_sec,
-                  **kwargs)
   fig, axes= plt.subplots(len(attributes_list),
                           1, 
                           figsize=(10,15), 
                           squeeze= False)
+  x= stats['time_sec']
   for cur_attributes, ax in zip(attributes_list, axes[:,0]):
       print(cur_attributes)
       for attr in cur_attributes:
-        cur_c= c[attr]
-        n_frames= len(cur_c)
-        x = np.arange(n_frames) * sim_time_sec / n_frames
-        ax.plot(x, cur_c, label=attr)
+        ax.plot(x, stats[attr], label=attr)
       if log:
         ax.set_yscale('log')
       ax.set_xlabel("time [sec]")
@@ -132,12 +95,37 @@ def plot_simulation_attributes(sim_time_sec,
         ylim= ax.get_ylim()
         ylim= (10.0, ylim[1])
         ax.set_ylim(ylim)
-  return axes, x, c
+  return axes
 
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 200.0
+sim_time_sec= 250.0
+sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
+                #max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
+    
+def get_ts_time_series(dt_sec, **kwargs):
+  ts= TransportSimulation(**kwargs)
+  ts.bleach_start_time_sec= 400.0
+  ts.dt_sec= dt_sec
+  ts.set_v_N_L(627e-15, True)
+  ts.set_v_C_L(2194e-15, True)
+  ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
+  ts.set_passive_nuclear_molar_rate_per_sec(0.02)
+  ts.set_params(fraction_complex_NPC_traverse_per_sec= 100,
+              rate_free_to_complex_per_sec= 0.05)
+  ts.bleach_volume_L_per_sec= 100.0e-15
+  #ts.rate_complex_to_NPC_per_free_site_per_sec_per_M= 1.0e+6
+  ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.05e+6 # TODO: this is doubled relative to complex_N to free_N
+  ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.05e+6
+  return ts
+
+ts= get_ts_time_series(dt_sec= 2e-3, **sim_flags)
+stats= ts.simulate(sim_time_sec, nskip_statistics= 10)
+```
+
+```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC_C_import', 'complexL_NPC_C_export',
                     'complexL_NPC_N_import', 'complexL_NPC_N_export',
@@ -149,21 +137,23 @@ c_attributes = ["c_C_M", "c_C_M"]
 b_attributes = ['fraction_C_b', "c_C_M", ]
 npc_attributes = ['nmol_NPC']
 dock_attributes = ['c_C_M', 'fraction_C_b', 'nmol_NPC', 'NPC_dock_capacity']
-
- 
+is_log= True
+ax= plot_simulation_attributes(
+    stats, 
+    [ RAN_attributes, 
+     cargoL_attributes, 
+     cargoU_attributes ],
+    log= is_log)
 ```
 
-```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
-is_log= False
-sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
-                #max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
-ax, x, c= plot_simulation_attributes(sim_time_sec, 
-                           [ RAN_attributes, 
-                             cargoL_attributes, 
-                             cargoU_attributes ],
-                            log= is_log,
-                            dt_sec=1e-3,
-                            **sim_flags)
+```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
+plt.figure()
+plt.plot(stats['time_sec'], 
+         (stats['freeL_N']+stats['complexL_N']+stats['freeU_N']+stats['complexU_N']) 
+         / (stats['freeL_C']+stats['complexL_C']+stats['freeU_C']+stats['complexU_C']) * (ts.get_v_C_L()/ts.get_v_N_L()))
+plt.xlabel(r'time [$s$]')
+plt.ylabel(r'N:C')
+#plt.ylim(0,5)
 ```
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 327}, id="XhwtdMILBQRz", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="a839a06b-8902-4553-8096-f39b2a9ea16c"}
@@ -224,6 +214,8 @@ def get_transport_simulation_map_passive(**kwargs):
     ts.set_v_C_L(2194e-15, True)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.05e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.05e+6
     return ts
 
 n_processors= multiprocessing.cpu_count()
@@ -275,14 +267,14 @@ import map_param_grid
 import transport_simulation
 importlib.reload(map_param_grid)
 importlib.reload(transport_simulation)
+```
 
+```{python}
 def get_param_range_traverse_kon(nx, ny):
     param_range= {}
     print(f"nx={nx} ny={ny}")
-    epsilon = 1e-9
-    c_cargo_M= 50e-6 # TODO: fetch this from the simulation
     param_range['tag_x']= "fraction_complex_NPC_traverse_per_sec"
-    param_range['range_x']= np.logspace(-2, 4, nx) # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
+    param_range['range_x']= np.logspace(-2, 4, nx) 
     param_range['pretty_x']= r"rate NPC traverse [$sec^{-1}$]"
     param_range['tag_y']= "rate_free_to_complex_per_sec"
     param_range['range_y']= np.logspace(-3, 2, ny)
@@ -298,7 +290,9 @@ def my_transport_simulation(**kwargs):
     ts.set_v_C_L(2194e-15, True)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
-    ts.set_passive_nuclear_molar_rate_per_sec(0.02) #get_passive_export_rate_per_sec(27,1))
+    ts.set_passive_nuclear_molar_rate_per_sec(0.08) #get_passive_export_rate_per_sec(27,1))
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.05e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.05e+6
     return ts
 test_ts= my_transport_simulation()
 print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
@@ -381,6 +375,8 @@ def get_ts_with_parameters(MW= 27,
                   get_free_to_complex_rate(NLS_strength))
     ts.set_params(fraction_complex_NPC_traverse_per_sec=
                   get_fraction_complex_NPC_traverse_per_sec(MW, is_force))
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.05e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.05e+6
     return ts
 
 def get_free_to_complex_rate(NLS_strength):
@@ -499,11 +495,7 @@ def get_MW_stats_list_by_force(MW):
             ts = get_ts_with_parameters(MW= MW,
                                     NLS_strength=i_NLS,
                                   is_force= is_force)
-            ts.set_params(dt_sec=1e-3)
-#            ts.Ran_cell_M= 100e-6 # NOTE
-            ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.1e+6 # TODO: this is doubled relative to complex_N to free_N
-            ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.1e+6
-#            ts.fraction_complex_NPC_to_complex_N_C_per_sec= 0.1 # NOTE
+            ts.set_params(dt_sec=2e-3)
             TS_tuples.append((ts, simulation_time_sec))
         pool= multiprocessing.Pool(processes= n_processors)
         stats_list_by_force[is_force]= pool.starmap(do_simulate,
