@@ -15,6 +15,10 @@ jupyter:
 # Unit testing
 
 ```{python}
+# !pwd
+```
+
+```{python}
 # !python test_transport_simulation.py
 ```
 
@@ -72,7 +76,12 @@ def time_series(sim_time_sec, attributes, n_skip=10, dt_sec=1e-3, **kwargs):
   ts= TransportSimulation(**kwargs)
   ts.bleach_start_time_sec= 100.0
   ts.dt_sec= dt_sec
-  n= int(np.ceil(sim_time_sec / ts.dt_sec))
+  ts.set_v_N_L(627e-15, True)
+  ts.set_v_C_L(2194e-15, True)
+  ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
+  ts.bleach_volume_L_per_sec= 100.0e-15
+  n= int(np.ceil(sim_time_sec / ts.dt_sec))   
   print(f"Running for n={n} time steps")
   n_frames= int(np.floor(n/n_skip)) + 1 
   c_arrs = {attr: np.zeros(n_frames) for attr in attributes}
@@ -128,7 +137,7 @@ def plot_simulation_attributes(sim_time_sec,
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 150.0
+sim_time_sec= 200.0
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC_C_import', 'complexL_NPC_C_export',
                     'complexL_NPC_N_import', 'complexL_NPC_N_export',
@@ -155,23 +164,6 @@ ax, x, c= plot_simulation_attributes(sim_time_sec,
                             log= is_log,
                             dt_sec=1e-3,
                             **sim_flags)
-```
-
-```{python colab={'base_uri': 'https://localhost:8080/', 'height': 1000}, id="HcFrpVqGyUYA", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="6eda17e7-207f-4440-e5b7-8ee5561ff8c2"}
-
-
-
-```
-
-```{python}
-              
-                                                                                  
-
-
-```
-
-```{python}
-
 ```
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 327}, id="XhwtdMILBQRz", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="a839a06b-8902-4553-8096-f39b2a9ea16c"}
@@ -211,47 +203,69 @@ def get_param_range_D_kon(nx, ny):
     param_range= {}
     print(f"nx={nx} ny={ny}")
     epsilon = 1e-9
-    c_cargo_M= 50e-6 # TODO: fetch this from the simulation
+    v_N_L= 627e-15
     param_range['tag_x']= "max_passive_diffusion_rate_nmol_per_sec_per_M"
-    param_range['range_x']= np.logspace(2, 5, nx) / c_cargo_M # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
+    param_range['range_x']= np.logspace(-4, 0, nx) * transport_simulation.N_A * v_N_L # divided to convert from nuclear passive diffudsion rate r, where dN/dt = r*([C]-[N]))
     param_range['pretty_x']= r"passive diffusion rate [$s^{-1} M^{-1}$]"
     param_range['tag_y']= "rate_free_to_complex_per_sec"
-    param_range['range_y']= np.logspace(-3, 0, ny)
+    param_range['range_y']= np.logspace(-4, 0, ny)
     param_range['pretty_y']= r"NTR $k_{on}$ [$sec^{-1}$]"
     return param_range
-
+print("hi")
 ```
 
 ```{python id="Edd4bveu5jph"}
 import multiprocessing
+
+def get_transport_simulation_map_passive(**kwargs):
+    ts= transport_simulation.TransportSimulation(**kwargs) 
+    ts.set_time_step(1e-3)
+    ts.set_v_N_L(627e-15, True)
+    ts.set_v_C_L(2194e-15, True)
+    ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
+    return ts
+
 n_processors= multiprocessing.cpu_count()
-param_range= get_param_range_D_kon(nx= 8, ny= 6)
-stats_grids, ts= map_param_grid.map_param_grid_parallel( param_range,
-                                      equilibration_time_sec= 100.0,
-                                      n_processors= n_processors-2)
+param_range= get_param_range_D_kon(nx= 9, ny= 9)
+stats_grids_passive, ts_passive= map_param_grid.map_param_grid_parallel( param_range,
+                                      equilibration_time_sec= 600.0,
+                                      n_processors= n_processors-2,
+                                    transport_simulation_generator= get_transport_simulation_map_passive)
 
 ```
 
 ```{python id="XQvFv3M-NYJN"}
-ts= map_param_grid.get_new_transport_simulation()
+param_range2= param_range.copy()
+param_range2['pretty_x'] = r"dN/dt passive rate [$s^{-1}$]"
+param_range2['range_x'] = param_range['range_x'] / transport_simulation.N_A / ts_passive.get_v_N_L()
 fig, axes= plt.subplots(2,3, figsize=(14, 6.5), sharex=True, sharey=True)
+NC_min=1.0
+NC_max= 8.0
 # N/C
 plt.sca(axes[0,0])
-map_param_grid.plot_NC_ratios(param_range, stats_grids, ts)
+map_param_grid.plot_NC_ratios(param_range2, stats_grids_passive, ts_passive,
+                             vmin= NC_min, vmax= NC_max)
 # Bound fraction
-map_param_grid.plot_bound_fraction(param_range, stats_grids, 
+map_param_grid.plot_bound_fraction(param_range2, stats_grids_passive, 
                                    'N', ax=axes[0,1])
-map_param_grid.plot_bound_fraction(param_range, stats_grids, 
+map_param_grid.plot_bound_fraction(param_range2, stats_grids_passive, 
                                    'C', ax=axes[0,2])
 # Import/export
-map_param_grid.plot_import_export(param_range,
-                                  stats_grids,
+map_param_grid.plot_import_export(param_range2,
+                                  stats_grids_passive,
                                   axes=[axes[1,0], axes[1,1]])
 plt.sca(axes[1,2])
-ratios_import_export= map_param_grid.get_import_export_ratios(stats_grids)
-map_param_grid.plot_param_grid(param_range, 
+ratios_import_export= map_param_grid.get_import_export_ratios(stats_grids_passive)
+map_param_grid.plot_param_grid(param_range2, 
                 ratios_import_export,
-                Z_label= 'import:export')
+                Z_label= 'import:export',
+                vmin= NC_min, vmax= NC_max, 
+                levels=np.linspace(NC_min, NC_max, 21),
+                extend= 'both')
+print(param_range)
+print(param_range2)
+
 ```
 
 ## map traverse
@@ -268,7 +282,7 @@ def get_param_range_traverse_kon(nx, ny):
     epsilon = 1e-9
     c_cargo_M= 50e-6 # TODO: fetch this from the simulation
     param_range['tag_x']= "fraction_complex_NPC_traverse_per_sec"
-    param_range['range_x']= np.logspace(-2, 2, nx) # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
+    param_range['range_x']= np.logspace(-2, 4, nx) # divided by 50E-6 to normalize by the initial cargo concentration # TODO: take the actual cargo concentration?
     param_range['pretty_x']= r"rate NPC traverse [$sec^{-1}$]"
     param_range['tag_y']= "rate_free_to_complex_per_sec"
     param_range['range_y']= np.logspace(-3, 2, ny)
@@ -280,30 +294,36 @@ def get_param_range_traverse_kon(nx, ny):
 def my_transport_simulation(**kwargs):
     ts= transport_simulation.TransportSimulation(**kwargs)      
     ts.set_time_step(1e-3)
-    ts.set_passive_nuclear_molar_rate_per_sec(0.08) #get_passive_export_rate_per_sec(27,1))
+    ts.set_v_N_L(627e-15, True)
+    ts.set_v_C_L(2194e-15, True)
+    ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
+    ts.set_passive_nuclear_molar_rate_per_sec(0.02) #get_passive_export_rate_per_sec(27,1))
     return ts
 test_ts= my_transport_simulation()
 print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
 ```
 
 ```{python}
-param_range= get_param_range_traverse_kon(nx= 10, ny= 10)
+param_range= get_param_range_traverse_kon(nx= 13, ny= 11)
 print(param_range)
 n_processors= multiprocessing.cpu_count()
-stats_grids_traverse, ts= map_param_grid.map_param_grid_parallel( param_range,
-                                      equilibration_time_sec= 100.0,
+stats_grids_traverse, ts_traverse= map_param_grid.map_param_grid_parallel( param_range,
+                                      equilibration_time_sec= 500.0,
                                       n_processors= n_processors-2,
                                                    transport_simulation_generator= my_transport_simulation)
 ```
 
 ```{python}
 importlib.reload(map_param_grid)
-NC_max= 5.0
+NC_min=1.0
+NC_max= 4.0
 fig, axes= plt.subplots(2,3, figsize=(14, 6.5), sharex=True, sharey=True)
 # N/C
 plt.sca(axes[0,0])
-map_param_grid.plot_NC_ratios(param_range, stats_grids_traverse, ts, 
-                              vmax= NC_makx)
+map_param_grid.plot_NC_ratios(param_range, stats_grids_traverse, ts_traverse, 
+                              vmin= NC_min,
+                              vmax= NC_max)
 # Bound fraction
 map_param_grid.plot_bound_fraction(param_range, stats_grids_traverse, 
                                    'N', ax=axes[0,1])
@@ -314,15 +334,20 @@ map_param_grid.plot_import_export(param_range,
                                   stats_grids_traverse,
                                   axes=[axes[1,0], axes[1,1]],
                                vmin=0.0,
-                               vmax=0.3,
-                levels=np.linspace(0,0.3,16),
+                               vmax=0.2,
+                levels=np.linspace(0,0.2,16),
                                  extend='both')
 plt.sca(axes[1,2])
 ratios_import_export= map_param_grid.get_import_export_ratios(stats_grids_traverse)
 map_param_grid.plot_param_grid(param_range, 
                 ratios_import_export,
                 Z_label= 'import:export',
-                              vmax=NC_max)
+                vmin= NC_min,
+                vmax= NC_max,
+                levels=np.linspace(NC_min, NC_max, 21),
+                extend='both')
+plt.show()
+
 ```
 
 # Map NLS strength, MW size, force
@@ -343,6 +368,13 @@ def get_ts_with_parameters(MW= 27,
                       is_force= False, 
                       **kwargs):
     ts = TransportSimulation(**kwargs)
+    ts.set_v_N_L(627e-15, True)
+    ts.set_v_C_L(2194e-15, True)
+    if is_force:
+        ts.set_v_N_L(762e-15, False)
+        ts.set_v_C_L(4768e-15, False)
+    ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
     ts.set_passive_nuclear_molar_rate_per_sec(
         get_passive_nuclear_molar_rate_per_sec(MW, is_force))
     ts.set_params(rate_free_to_complex_per_sec= 
@@ -458,7 +490,7 @@ def do_simulate(ts, simulation_time_sec):
 
 def get_MW_stats_list_by_force(MW):
     assert(MW in [27,41, 54, 67])
-    simulation_time_sec= 75
+    simulation_time_sec= 800
     stats_list_by_force= {}
     TSs_by_force= {}
     for is_force in [False, True]:
