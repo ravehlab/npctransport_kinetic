@@ -52,8 +52,8 @@ def mp_do_simulation(param_range, i, j,
     my_ts.set_params(**cur_params)
     stats = my_ts.simulate(equilibration_time_sec,
                            nskip_statistics= 100)  
-    if (np.random.rand()<0.2):
-        print(f"Finished ~5 jobs (at i={i} j={j})")
+    if (np.random.rand()<0.1):
+        print(f"Finished some ten jobs (at i={i} j={j})")
     return {"i":i, "j":j, "stats":stats}
 
 def mp_handle_stats(stats_grids, mydicts):
@@ -159,7 +159,10 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
-def plot_NC_ratios(param_range, stats_grids, ts, vmin= 1.0, vmax= 4.0):
+def plot_NC_ratios(param_range, stats_grids, ts, 
+                   vmin= 1.0, vmax= 4.0, 
+                   locator= None, 
+                  levels= None):
     NC_ratios= get_N_to_C_ratios(stats_grids, 
                               v_N_L= ts.get_v_N_L(), 
                               v_C_L= ts.get_v_C_L())
@@ -169,7 +172,8 @@ def plot_NC_ratios(param_range, stats_grids, ts, vmin= 1.0, vmax= 4.0):
                     Z_label= "N/C ratio",
                     vmin= vmin,
                     vmax= vmax, 
-                    levels=np.linspace(vmin, vmax,21), 
+                    locator= locator, 
+                    levels= levels,
                     extend='both')
 
 def plot_bound_fraction(param_range, stats_grids, compartment, ax= None):
