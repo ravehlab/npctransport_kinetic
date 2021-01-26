@@ -335,7 +335,7 @@ print(b)
 param_range= get_param_range_traverse_kon(nx= 16, ny= 16)
 print(param_range)
 n_processors= multiprocessing.cpu_count()
-if False:
+if True:
     stats_gstats_grids_traverse_by_passive_force= {}
     ts_traverse_by_passive_force= {}
 for passive in np.linspace(0.1, 0.2, 6): #0.01,0.09,6):
