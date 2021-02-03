@@ -100,33 +100,16 @@ def plot_simulation_attributes(stats,
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 250.0
-sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
-                #max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
-    
-def get_ts_time_series(dt_sec, **kwargs):
-  ts= TransportSimulation(**kwargs)
-  ts.bleach_start_time_sec= 400.0
-  ts.dt_sec= dt_sec
-  ts.set_v_N_L(627e-15, True)
-  ts.set_v_C_L(2194e-15, True)
-  ts.set_NPC_dock_sites(n_NPCs= 2000, 
-                        n_dock_sites_per_NPC= 500)
-  ts.set_passive_nuclear_molar_rate_per_sec(0.02)
-  ts.set_params(fraction_complex_ 
+
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-sim_time_sec= 250.0
-sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
-                #max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
-    
 def get_ts_time_series(dt_sec, **kwargs):
-  ts= TransportSimulation(**kwargs)
+  ts= TransportSimulation(v_N_L=627e-15,
+                          v_C_L=2194e-15,
+                          **kwargs)
   ts.bleach_start_time_sec= 400.0
   ts.dt_sec= dt_sec
-  ts.set_v_N_L(627e-15, True)
-  ts.set_v_C_L(2194e-15, True)
   ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
   ts.set_passive_nuclear_molar_rate_per_sec(0.02)
@@ -138,11 +121,84 @@ def get_ts_time_series(dt_sec, **kwargs):
   ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.05e+6
   return ts
 
-ts= get_ts_time_series(dt_sec= 2e-3, **sim_flags)
+def get_ts_time_series_2(passive_nuclear_molar_rate_per_sec,
+                                        is_force,
+                            **kwargs):
+    if is_force:
+        v_N_L=762e-15
+        v_C_L=4768e-15
+    else:
+        v_N_L=627e-15
+        v_C_L=2194e-15           
+    ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
+                                                v_C_L= v_C_L)      
+    ts.set_time_step(1.0e-3)
+    ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
+    ts.set_passive_nuclear_molar_rate_per_sec(passive_nuclear_molar_rate_per_sec) #get_passive_export_rate_per_sec(27,1))
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 10.0e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 10.0e+6
+    ts.rate_complex_to_NPC_per_free_site_per_sec_per_M= 50.0e+6
+    ts.fraction_complex_NPC_to_complex_N_C_per_sec= 25.0 # Leakage parameter
+    ts.rate_GDP_N_to_GTP_N_per_sec= 200.0
+    ts.rate_GTP_N_to_GDP_N_per_sec= 2.0
+    ts.rate_GTP_C_to_GDP_C_per_sec= 500.0
+    ts.rate_GTP_N_to_GTP_C_per_sec = 25.0
+    ts.rate_GDP_C_to_GDP_N_per_sec = 3.0
+    ts.rate_GDP_N_to_GDP_C_per_sec = 3.0
+    ts.rate_complex_to_free_per_sec = 0.05
+    ts.rate_free_to_complex_per_sec = 0.05
+    ts.fraction_complex_NPC_traverse_per_sec=200
+    ts.set_params(**kwargs) # override defaults
+    return ts
+
+def get_ts_time_series_3(passive_nuclear_molar_rate_per_sec,
+                                        is_force,
+                         dt_sec=1e-3,
+                            **kwargs):
+    if is_force:
+        v_N_L=762e-15
+        v_C_L=4768e-15
+    else:
+        v_N_L=627e-15
+        v_C_L=2194e-15    
+    ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
+                                                v_C_L= v_C_L)      
+    ts.set_time_step(dt_sec)
+    ts.set_NPC_dock_sites(n_NPCs= 2000, 
+                        n_dock_sites_per_NPC= 500)
+    ts.set_passive_nuclear_molar_rate_per_sec(passive_nuclear_molar_rate_per_sec) #get_passive_export_rate_per_sec(27,1))
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 1.0e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 1.0e+6
+    ts.rate_complex_to_NPC_per_free_site_per_sec_per_M= 50e+6
+    ts.fraction_complex_NPC_to_complex_N_C_per_sec= 1000.0 # Leakage parameter
+    ts.rate_GDP_N_to_GTP_N_per_sec= 500.0
+    ts.rate_GTP_N_to_GDP_N_per_sec= 0.1
+    ts.rate_GTP_C_to_GDP_C_per_sec= 50.0
+    ts.rate_GTP_N_to_GTP_C_per_sec = 0.5
+    ts.rate_GDP_C_to_GDP_N_per_sec = 0.4
+    ts.rate_GDP_N_to_GDP_C_per_sec = 0.4 
+    ts.rate_complex_to_free_per_sec = 5e-2
+    ts.rate_free_to_complex_per_sec = 0.3e+1
+    ts.fraction_complex_NPC_traverse_per_sec=200
+    ts.set_params(**kwargs) # override defaults
+    return ts
+```
+
+```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
+# RUN:
+sim_time_sec= 20.0
+sim_flags= dict()#rate_free_to_complex_per_sec=1.0,
+                #max_passive_diffusion_rate_nmol_per_sec_per_M=2e7)
+#ts= get_ts_time_series(dt_sec= 2e-3, **sim_flags)
+ts= get_ts_time_series_3(passive_nuclear_molar_rate_per_sec=0.04,
+                         is_force= False,
+                         **sim_flags)
 stats= ts.simulate(sim_time_sec, nskip_statistics= 10)
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
+#### 
 RAN_attributes = ['GDP_N', 'GDP_C', 'GTP_N', 'GTP_C']
 cargoL_attributes= ['complexL_NPC_C_import', 'complexL_NPC_C_export',
                     'complexL_NPC_N_import', 'complexL_NPC_N_export',
@@ -164,29 +220,39 @@ ax= plot_simulation_attributes(
 ```
 
 ```{python id="lzmLU0YTw74H", jupyter={'source_hidden': True}}
-plt.figure()
+## plt.figure()
 plt.plot(stats['time_sec'], 
          (stats['freeL_N']+stats['complexL_N']+stats['freeU_N']+stats['complexU_N']) 
          / (stats['freeL_C']+stats['complexL_C']+stats['freeU_C']+stats['complexU_C']) * (ts.get_v_C_L()/ts.get_v_N_L()))
 plt.xlabel(r'time [$s$]')
 plt.ylabel(r'N:C')
 #plt.ylim(0,5)
+plt.figure()
+for tag in ['import','export']:
+    plt.plot(stats['time_sec'],
+            stats[f'nuclear_{tag}L_per_sec'],
+            label=tag)
+    plt.yscale('log')
+    plt.legend()
 ```
+
+### Slow/normal
 
 ```{python colab={'base_uri': 'https://localhost:8080/', 'height': 327}, id="XhwtdMILBQRz", jupyter={'outputs_hidden': True, 'source_hidden': True}, outputId="a839a06b-8902-4553-8096-f39b2a9ea16c"}
 ts_slow=  get_ts_time_series(2e-3, 
                             rate_GDP_N_to_GTP_N_per_sec=0.2)
 #fig, ax = plt.subplots(1, 3,figsize=(40,5))
-axes0, x, c_1 = plot_simulation_attributes(ts_slow,
-                                           sim_time_sec, 
+stats_slow= ts_slow.simulate(sim_time_sec)
+ax = plot_simulation_attributes(stats_slow, 
                                            [cargoL_attributes], 
                                            log= is_log)
-axes0[0,0].set_title("slow GDP_N to GTP_N rate")
+plt.title("slow GDP_N to GTP_N rate")
 ts_normal=  get_ts_time_series(2e-3)
-axes1, x, c_2 = plot_simulation_attributes(ts_normal,
-                                           sim_time_sec, [cargoL_attributes], 
+stats_normal= ts_normal.simulate(sim_time_sec)
+ax = plot_simulation_attributes(stats_normal,
+                                           [cargoL_attributes], 
                                            log= is_log)
-axes1[0,0].set_title("normal GDP_N to GTP_N rate")
+plt.title("normal GDP_N to GTP_N rate")
 ```
 
 ```{python}
@@ -302,70 +368,46 @@ def get_param_range_traverse_kon(nx, ny):
 ```{python}
 def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
                                         is_force,
-                            **kwargs):
-    ts= transport_simulation.TransportSimulation(**kwargs)      
-    ts.set_time_step(2e-3)
+                                        **kwargs):    
     if is_force:
-        ts.set_v_N_L(762e-15, False)
-        ts.set_v_C_L(4768e-15, False)
+        v_N_L=762e-15
+        v_C_L=4768e-15
     else:
-        ts.set_v_N_L(627e-15, True)
-        ts.set_v_C_L(2194e-15, True)
+        v_N_L=627e-15
+        v_C_L=2194e-15    
+    ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
+                                                v_C_L= v_C_L)   
+    ts.set_time_step(0.2e-3)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
     ts.set_passive_nuclear_molar_rate_per_sec(passive_nuclear_molar_rate_per_sec) #get_passive_export_rate_per_sec(27,1))
-    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.25e+6 # TODO: this is doubled relative to complex_N to free_N
-    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.25e+6
-    ##
-    ts.rate_complex_to_NPC_per_free_site_per_sec_per_M= 0.5e+6
-    ts.fraction_complex_NPC_to_complex_N_C_per_sec= 100.0 # Leakage parameter
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 2.5e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 2.5e+6
+    ts.rate_complex_to_NPC_per_free_site_per_sec_per_M= 5e+6
+    ts.fraction_complex_NPC_to_complex_N_C_per_sec= 30.0 # Leakage parameter
+    ts.rate_GDP_N_to_GTP_N_per_sec= 100.0
+    ts.rate_GTP_N_to_GDP_N_per_sec= 0.1
+    ts.rate_GTP_C_to_GDP_C_per_sec= 100.0
+    ts.rate_GTP_N_to_GTP_C_per_sec = 0.1
+    ts.rate_GDP_C_to_GDP_N_per_sec = 30.0
+    ts.rate_GDP_N_to_GDP_C_per_sec = 30.0 
     return ts
 test_ts= get_transport_simulation_by_passive(0.02, False)
 print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
 ```
 
 ```{python}
-a=(4,True)
-b={}
-b[a]=3
-print(b)
-```
-
-```{python}
-param_range= get_param_range_traverse_kon(nx= 16, ny= 16)
-print(param_range)
-n_processors= multiprocessing.cpu_count()
-if True:
-    stats_gstats_grids_traverse_by_passive_force= {}
-    ts_traverse_by_passive_force= {}
-for passive in np.linspace(0.1, 0.2, 6): #0.01,0.09,6):
-    for is_force in [False, True]:
-        def transport_simulation_generator(**kwargs):
-            return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
-                                                       is_force= is_force,
-                                                       **kwargs)
-        key= (passive, is_force)
-        stats_grids_traverse_by_passive_force[key], \
-        ts_traverse_by_passive_force[key] = \
-            map_param_grid.map_param_grid_parallel( param_range,
-                                                equilibration_time_sec= 80.0,
-                                                n_processors= n_processors-2,
-                                        transport_simulation_generator= transport_simulation_generator)
-        print(f"Done passive f{passive}")
-```
-
-```{python}
+import map_param_grid
 importlib.reload(map_param_grid)
-#import map_param_grid
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.rc('image', cmap='RdYlBu')
 
-def plot_stats_grids(stats_grids, transport_simulation):
-    NC_min=1.0
-    NC_max= 10.0
-    vmax_import_export=0.25
-    fig, axes= plt.subplots(2,3, figsize=(14, 6.5), sharex=True, sharey=True)
+def plot_stats_grids(stats_grids, transport_simulation,
+                        NC_min=0.0,
+                        NC_max= 10.0,
+                        vmax_import_export=10.0):
+    fig, axes= plt.subplots(3,3, figsize=(14, 10), sharex=True, sharey=True)
     # N/C
     plt.sca(axes[0,0])
     map_param_grid.plot_NC_ratios(param_range, 
@@ -383,14 +425,15 @@ def plot_stats_grids(stats_grids, transport_simulation):
     map_param_grid.plot_bound_fraction(param_range, stats_grids, 
                                        'C', ax=axes[0,2])
     # Import/export
+    import_export_locator= mpl.ticker.LogLocator(subs=[1.0, 5.0])
     map_param_grid.plot_import_export(param_range,
                                       stats_grids,
-                                      axes=[axes[1,0], axes[1,1]],
-                                   vmin=0.02,
-                                   vmax=vmax_import_export,
-                    levels=np.linspace(0.0,vmax_import_export,20),
-#                    levels= np.logspace(np.log10(1e-2),np.log10(vmax_import_export),11),
-#                                      locator= mpl.ticker.LogLocator(), 
+                                      axes= [axes[1,0], axes[1,1]],
+                                   vmin= 0.01,
+                                   vmax= vmax_import_export,
+#                    levels=np.linspace(0.0,vmax_import_export,20),
+                    levels= np.logspace(np.log10(1e-2),np.log10(vmax_import_export),21),
+                                      locator= import_export_locator, 
                                      extend='both')
     plt.sca(axes[1,2])
     ratios_import_export= map_param_grid.get_import_export_ratios(stats_grids)
@@ -399,15 +442,79 @@ def plot_stats_grids(stats_grids, transport_simulation):
                     Z_label= 'import:export',
                     vmin= NC_min,
                     vmax= NC_max,
-                    levels=np.linspace(NC_min, NC_max, 11),
+                    levels=np.linspace(NC_min, NC_max, 21),
                     extend='both')
-    plt.show()
     
-for key in stats_grids_traverse_by_passive_force.keys():
+    plt.sca(axes[2,0])
+    GTP_ratio= stats_grids['GTP_N']/stats_grids['GTP_C']
+    map_param_grid.plot_param_grid(param_range, 
+                    GTP_ratio,
+                    Z_label= f"GTP N:C",
+                    vmin=0.0, 
+                     vmax=2000.0, 
+                     levels=np.linspace(0,2000,21), 
+                     extend='both')
+    plt.sca(axes[2,1])
+    GDP_ratio= stats_grids['GDP_C']/stats_grids['GDP_N']
+    map_param_grid.plot_param_grid(param_range, 
+                    GDP_ratio,
+                    Z_label= f"GDP C:N",
+                    vmin=0.0, 
+#                     vmax=vmax, 
+#                     levels=np.linspace(0,vmax,11), 
+                     extend='both')
+    plt.sca(axes[2,2])
+    Ran_ratio= (stats_grids['GTP_N']+stats_grids['GDP_N'])/(stats_grids['GTP_C']+stats_grids['GDP_C'])
+    map_param_grid.plot_param_grid(param_range, 
+                    Ran_ratio,
+                    Z_label= f"Ran N:C",
+                    vmin=0.0, 
+                     vmax=20, 
+                    levels=np.linspace(0,20,21), 
+                     extend='both')
+    plt.show()
+```
+
+```{python}
+param_range= get_param_range_traverse_kon(nx= 5, ny= 5)
+print(param_range)
+n_processors= multiprocessing.cpu_count()
+if True:
+    stats_grids_traverse_by_passive_force= {}
+    ts_traverse_by_passive_force= {}
+for passive in np.logspace(np.log10(0.01), np.log10(0.2), 12): #0.01,0.09,6):
+    for is_force in [False, True]:
+#        if is_force:
+#            continue
+        def transport_simulation_generator(**kwargs):
+            return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
+                                                       is_force= is_force,
+                                                       **kwargs)
+        key= (passive, is_force)
+        stats_grids_traverse_by_passive_force[key], \
+        ts_traverse_by_passive_force[key] = \
+            map_param_grid.map_param_grid_parallel( param_range,
+                                                equilibration_time_sec= 20.0,
+                                                n_processors= n_processors-3,
+                                        transport_simulation_generator= transport_simulation_generator)
+        print(f"passive rate {passive} is force {is_force}")
+        plot_stats_grids(stats_grids_traverse_by_passive_force[key],
+                    ts_traverse_by_passive_force[key])
+```
+
+```{python}
+keys= sorted(stats_grids_traverse_by_passive_force.keys(), key=lambda x: (x[1],x[0]))
+for key in keys:
+    if key[1]:
+        continue
     print(f"passive rate {key[0]} is force {key[1]}")
     plot_stats_grids(stats_grids_traverse_by_passive_force[key],
-                    ts_traverse_by_passive_force[key])
+                    ts_traverse_by_passive_force[key],
+                    vmax_import_export= 1.0)
+```
 
+```{python}
+print("hi")
 ```
 
 # Map NLS strength, MW size, force
@@ -441,8 +548,8 @@ def get_ts_with_parameters(MW= 27,
                   get_free_to_complex_rate(NLS_strength))
     ts.set_params(fraction_complex_NPC_traverse_per_sec=
                   get_fraction_complex_NPC_traverse_per_sec(MW, is_force))
-    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.25e+6 # TODO: this is doubled relative to complex_N to free_N
-    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.25e+6
+    ts.fraction_complex_NPC_to_free_N_per_M_GTP_per_sec = 0.5e+6 # TODO: this is doubled relative to complex_N to free_N
+    ts.fraction_complex_N_to_free_N_per_M_GTP_per_sec = 0.5e+6
     ##
     ts.rate_complex_to_NPC_per_free_site_per_sec_per_M= 0.5e+6
     ts.fraction_complex_NPC_to_complex_N_C_per_sec= 100.0 # Leakage parameter
@@ -486,11 +593,11 @@ def get_force_effect_on_diffusion(MW):
     return effects[MW]
 
 def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
-    s= 200.0
-    rate= { 27: [s*0.3,  s*7.4],
-            41: [s*0.25,  s*6.4],
-            54: [s*0.2, s*6.0],
-            67: [s*0.15,  s*6.0] }
+    s= 10.0
+    rate= { 27: [s*2.0,  s*5.0],
+            41: [s*2.0,  s*5.5],
+            54: [s*1.5, s*4.5],
+            67: [s*2.0,  s*4.0] }
     i_force= 1 if is_force else 0
     return rate[MW][i_force]
 
