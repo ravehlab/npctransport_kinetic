@@ -51,9 +51,12 @@ def mp_do_simulation(param_range, i, j,
                   param_range['tag_y']: param_range['range_y'][j]}
     my_ts.set_params(**cur_params)
     stats = my_ts.simulate(equilibration_time_sec,
-                           nskip_statistics= 100)  
-    if (np.random.rand()<0.1):
-        print(f"Finished some ten jobs (at i={i} j={j})")
+                           nskip_statistics= 100) 
+    np.random.seed()
+    r= np.random.rand()
+#    print(f"r {r}")
+    if (r<0.1):
+        print(f"Finished some ten jobs (at i={i} j={j} r={r})")
     return {"i":i, "j":j, "stats":stats}
 
 def mp_handle_stats(stats_grids, mydicts):
@@ -139,6 +142,7 @@ def plot_param_grid(param_range,
                   y_meshgrid, 
                   Z,
                 **contourf_kwargs)
+#    print("contourf params", contourf_kwargs)
     ax= plt.gca()
     ax.set_xscale('log')
     ax.set_yscale('log')
@@ -151,6 +155,7 @@ def plot_param_grid(param_range,
     cb = plt.colorbar(label= Z_label)
     ticks = cb.get_ticks()
     cb.set_ticks(ticks)
+    cb.set_ticklabels(["{:.1f}".format(tick) for tick in ticks])
 
 def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ''' return N/C ratios from stats_grids computed in the previous cell'''
@@ -210,5 +215,6 @@ def plot_import_export(param_range, stats_grids, axes= None,
                         stats_grids[f'nuclear_{tag}L_per_sec'],
                         Z_label= tag + r' [$sec^{-1}$]',
                        **contourf_kwargs)
+        
 
 # %%
