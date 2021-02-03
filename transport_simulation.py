@@ -107,7 +107,7 @@ class TransportSimulation():
         '''
         global N_A
         RAN_distribution = np.array([parts_GTP_N, parts_GTP_C,
-                                     parts_GDP_N, parts_GDP_C]) 
+                                     parts_GDP_N, parts_GDP_C])
         RAN_distribution = RAN_distribution/np.sum(RAN_distribution) # normalize to 1
         nmol_Ran_cell= Ran_cell_M * (self.v_N_L + self.v_C_L) * N_A 
         self.nmol["GTP_N"] = nmol_Ran_cell * RAN_distribution[0]
@@ -118,24 +118,30 @@ class TransportSimulation():
     def set_v_N_L(self, v_L, 
                   fix_concentration):
         '''
-        :param fix_concentration: if true, rescale nmol for nuclear moleculears to fix concentration
+        :param fix_concentration: if True, rescale nmol for nuclear moleculears to fix nuclear concentration,
         '''
+        print(f"change v_N_L from {self.v_N_L} to {v_L}")
         if fix_concentration:
             s= v_L/self.v_N_L
             for key, value in self.nmol.items():
                 if self.get_compartment(key)=='N':
+                    print(f"Scaling {key} by {s} from {value}")
                     self.set_nmol(key, s * value)
         self.v_N_L= v_L
-                
+           
     def set_v_C_L(self, v_L, 
                   fix_concentration):
         '''
-        :param fix_concentration: if true, rescale nmol for cytoplasmic moleculears to fix concentration
+        :param fix_concentration: if True, rescale nmol for nuclear moleculears to fix cytoplasmic concentration,
         '''
-        if fix_concentration:
+        print(f"change v_C_L from {self.v_N_L} to {v_L}")
+        if fix_concentration=='C':
             s= v_L/self.v_C_L
+        elif fix_concentration=='cell':
+            s= (self.v_N_L+v_L)/(self.v_N_L+self.v_C_L)
             for key, value in self.nmol.items():
                 if self.get_compartment(key)=='C':
+                    print(f"Scaling {key} by {s} from {value}")
                     self.set_nmol(key, s * value)
         self.v_C_L= v_L
 
@@ -217,14 +223,17 @@ class TransportSimulation():
         self.set_params(**kwargs)
 
 
-    def __init__(self, **kwargs):
+    def __init__(self, 
+                 v_C_L= 55.85e-15, # Cytoplsmic volume in L
+                 v_N_L= 4.35e-15, # Nuclear volume in L
+                 **kwargs):
         ''' Set initial state of the simulation '''
         self._init_simulation_parameters(**kwargs)
         self.sim_time_sec= 0.0
         self.nmol= {} # number of molecules of various species
         # Cell geometry:
-        self.v_C_L= 55.85e-15 # Cytoplsmic volume in L
-        self.v_N_L= 4.35e-15 # Nuclear volume in L
+        self.v_C_L= v_C_L # Cytoplsmic volume in L
+        self.v_N_L= v_N_L # Nuclear volume in L
 #        self.v_C_L= 10e-15 # Cytoplsmic volume in L
 #        self.v_N_L= 5e-15 # Nuclear volume in L
         # NPC:
