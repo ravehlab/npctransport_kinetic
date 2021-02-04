@@ -508,14 +508,14 @@ for passive in np.logspace(np.log10(0.01), np.log10(0.2), 12): #0.01,0.09,6):
 ```
 
 ```{python}
-keys= sorted(stats_grids_traverse_by_passive_force.keys(), key=lambda x: (x[1],x[0]))
+keys= sorted(stats_grids_traverse_by_passive_force.keys(), key=lambda x: (x[0],x[1]))
 for key in keys:
-    if key[1]:
-        continue
+#    if key[1]:
+#        continue
     print(f"passive rate {key[0]} is force {key[1]}")
     plot_stats_grids(stats_grids_traverse_by_passive_force[key],
                     ts_traverse_by_passive_force[key],
-                    vmax_import_export= 1.0)
+                    vmax_import_export= 10.0)
 ```
 
 ```{python}
