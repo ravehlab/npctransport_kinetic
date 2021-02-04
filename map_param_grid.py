@@ -155,7 +155,7 @@ def plot_param_grid(param_range,
     cb = plt.colorbar(label= Z_label)
     ticks = cb.get_ticks()
     cb.set_ticks(ticks)
-    cb.set_ticklabels(["{:.1f}".format(tick) for tick in ticks])
+    cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
 
 def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ''' return N/C ratios from stats_grids computed in the previous cell'''
