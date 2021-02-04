@@ -378,7 +378,7 @@ def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
         v_C_L=2194e-15    
     ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
                                                 v_C_L= v_C_L)
-    ts.set_time_step(0.4e-3)
+    ts.set_time_step(0.2e-3)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
     ts.set_passive_nuclear_molar_rate_per_sec(passive_nuclear_molar_rate_per_sec) #get_passive_export_rate_per_sec(27,1))
@@ -481,7 +481,7 @@ def plot_stats_grids(stats_grids, transport_simulation,
 ```
 
 ```{python}
-param_range= get_param_range_traverse_kon(nx= 5, ny= 5)
+param_range= get_param_range_traverse_kon(nx= 7, ny= 7)
 print(param_range)
 n_processors= multiprocessing.cpu_count()
 if True:
