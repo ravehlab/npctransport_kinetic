@@ -101,6 +101,7 @@ def get_MW_stats_list_by_force(MW, simulation_time_sec,
     assert(MW in [27,41, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
+        print(f"Using {n_processors} processors")
         
     stats_list_by_force= {}
     TSs_by_force= {}
