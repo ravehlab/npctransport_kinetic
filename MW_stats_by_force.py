@@ -7,18 +7,18 @@ from make_plots import make_plot
 
 __all__ = ["get_MW_stats_list_by_force"]
 
-s = 20.0
-no_force_coefficient = 3.0
-force_coefficient = 10.0
+no_force = 30.0
+force = 200.0
 
 def do_simulate(ts, simulation_time_sec):
     return ts.simulate(simulation_time_sec)
 
 def get_ts_with_parameters(MW= 27, 
-                      NLS_strength= 0, 
-                      is_force= False, 
-                      **kwargs):
-    if is_force:
+                           NLS_strength= 0, 
+                           is_force= False, 
+                           is_change_cell_volume= True,
+                           **kwargs):
+    if is_force and is_change_cell_volume:
         v_N_L=762e-15
         v_C_L=4768e-15
     else:
@@ -84,20 +84,18 @@ def get_force_effect_on_diffusion(MW):
     """
     effects = {27:0.08214946, 
                 41:0.03027974, 
-                54:0.00026308, 
-                67:0.00272423 }
+                54:0.01, # 54:0.00026308, 
+                67:0.01 } #67:0.00272423 }
     return effects[MW]
 
 def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
-    rate= { 27: [s*no_force_coefficient,  s*force_coefficient],
-            41: [s*no_force_coefficient,  s*force_coefficient],
-            54: [s*no_force_coefficient, s*force_coefficient],
-            67: [s*no_force_coefficient,  s*force_coefficient] }
+    rate_row = [no_force, force]
+    rate= { mw : rate_row for mw in [27, 41, 54, 67] }
     i_force= 1 if is_force else 0
     return rate[MW][i_force]
 
-def get_MW_stats_list_by_force(MW, simulation_time_sec,
-                              n_processors=None, nls_range=(0,9)):
+def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
+                               is_change_cell_volume=True, nls_range=(0,9)):
     assert(MW in [27,41, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
@@ -107,9 +105,10 @@ def get_MW_stats_list_by_force(MW, simulation_time_sec,
     for is_force in [False, True]:
         TS_tuples= []
         for i_NLS in range(*nls_range):
-            ts = get_ts_with_parameters(MW= MW,
-                                    NLS_strength=i_NLS,
-                                  is_force= is_force)
+            ts = get_ts_with_parameters(MW=MW,
+                                        NLS_strength=i_NLS,
+                                        is_force=is_force,
+                                        is_change_cell_volume=is_change_cell_volume)
             TS_tuples.append((ts, simulation_time_sec))
         pool= multiprocessing.Pool(processes= n_processors)
         stats_list_by_force[is_force]= pool.starmap(do_simulate,
@@ -123,14 +122,12 @@ if __name__ == "__main__":
     simulation_time_sec = float(sys.argv[2])
     
     if len(sys.argv) > 3:
-        s = float(sys.argv[3])
-        no_force_coefficient = float(sys.argv[3])
-        force_coefficient = float(sys.argv[4])
+        no_force = float(sys.argv[3])
+        force = float(sys.argv[4])
     else:
-        s = 20.0
-        no_force_coefficient = 3.0
-        force_coefficient = 10.0
-    filename = f"MW_stats_list_{MW}_{simulation_time_sec}_{s*no_force_coefficient}_{s*force_coefficient}"
+        no_force = 30.0
+        force = 200.0
+    filename = f"MW_stats_list_{MW}_{simulation_time_sec}_{no_force}_{force}"
     
     result = get_MW_stats_list_by_force(MW, simulation_time_sec)
     make_plot(result, f"{filename}.png")
