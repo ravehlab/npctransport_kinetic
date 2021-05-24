@@ -6,6 +6,9 @@ from transport_simulation import TransportSimulation
 
 __all__ = ["get_MW_stats_list_by_force"]
 
+s = 20.0
+no_force_coefficient = 3.0
+force_coefficient = 10.0
 
 def do_simulate(ts, simulation_time_sec):
     return ts.simulate(simulation_time_sec)
@@ -85,11 +88,10 @@ def get_force_effect_on_diffusion(MW):
     return effects[MW]
 
 def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
-    s= 20.0
-    rate= { 27: [s*3.0,  s*10.0],
-            41: [s*3.0,  s*10.0],
-            54: [s*3.0, s*10.0],
-            67: [s*3.0,  s*10.0] }
+    rate= { 27: [s*no_force_coefficient,  s*force_coefficient],
+            41: [s*no_force_coefficient,  s*force_coefficient],
+            54: [s*no_force_coefficient, s*force_coefficient],
+            67: [s*no_force_coefficient,  s*force_coefficient] }
     i_force= 1 if is_force else 0
     return rate[MW][i_force]
 
@@ -119,10 +121,19 @@ if __name__ == "__main__":
     MW = int(sys.argv[1])
     simulation_time_sec = float(sys.argv[2])
     
+    if len(sys.argv) > 3:
+        s = float(sys.argv[3])
+        no_force_coefficient = float(sys.argv[3])
+        force_coefficient = float(sys.argv[4])
+    else:
+        s = 20.0
+        no_force_coefficient = 3.0
+        force_coefficient = 10.0
+    
     result = get_MW_stats_list_by_force(MW, simulation_time_sec)
     import pickle
-    with open(f"MW_stats_list_by_force_{MW}_{simulation_time_sec}sec.pkl", 'wb') as f:
-        pickle.dump(MW_to_stats_list_by_force[MW], f)
+    with open(f"MW_stats_list_{MW}_{simulation_time_sec}_{s*no_force_coefficient}_{s*force_coefficient}.pkl", 'wb') as f:
+        pickle.dump(result, f)
 
 
 
