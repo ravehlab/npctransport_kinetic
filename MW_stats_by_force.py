@@ -3,6 +3,7 @@ import multiprocessing
 import transport_simulation 
 import sys
 from transport_simulation import TransportSimulation
+from make_plots import make_plot
 
 __all__ = ["get_MW_stats_list_by_force"]
 
@@ -129,11 +130,16 @@ if __name__ == "__main__":
         s = 20.0
         no_force_coefficient = 3.0
         force_coefficient = 10.0
+    filename = f"MW_stats_list_{MW}_{simulation_time_sec}_{s*no_force_coefficient}_{s*force_coefficient}"
     
     result = get_MW_stats_list_by_force(MW, simulation_time_sec)
+    make_plot(result, f"{filename}.png")
+    print("Figure saved as {filename}.png")
+
     import pickle
-    with open(f"MW_stats_list_{MW}_{simulation_time_sec}_{s*no_force_coefficient}_{s*force_coefficient}.pkl", 'wb') as f:
+    with open(f"{filename}.pkl", 'wb') as f:
         pickle.dump(result, f)
+        print("Saved as {filename}.pkl")
 
 
 
