@@ -4,7 +4,7 @@ import numpy as np
 import transport_simulation
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
 def plot_MW_stats_list(stats_list_by_force, TSs_by_force):
