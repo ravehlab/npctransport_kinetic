@@ -15,6 +15,9 @@ jupyter:
 # Unit testing
 
 ```{python}
+#NOTE: Most test runs are on a conda py36 environment on Mac
+# In principle, should work on any python but multiprocessing packaage
+# is sensitive and may require tuning.
 # !pwd
 ```
 
@@ -301,11 +304,12 @@ def get_transport_simulation_map_passive(**kwargs):
 
 n_processors= multiprocessing.cpu_count()
 param_range= get_param_range_D_kon(nx= 9, ny= 9)
+print("*** Starting multiprocess run ***")
 stats_grids_passive, ts_passive= map_param_grid.map_param_grid_parallel( param_range,
                                       equilibration_time_sec= 600.0,
                                       n_processors= n_processors-2,
                                     transport_simulation_generator= get_transport_simulation_map_passive)
-
+print("*** Finished multiprocess run ***")
 ```
 
 ```{python id="XQvFv3M-NYJN"}
@@ -358,19 +362,19 @@ def get_param_range_traverse_kon(nx, ny):
     param_range= {}
     print(f"nx={nx} ny={ny}")
     param_range['tag_x']= "fraction_complex_NPC_traverse_per_sec"
-    param_range['range_x']= np.logspace(-1, 4, nx) 
+    param_range['range_x']= np.logspace(0, 3, nx) 
     param_range['pretty_x']= r"rate NPC traverse [$sec^{-1}$]"
     param_range['tag_y']= "rate_free_to_complex_per_sec"
-    param_range['range_y']= np.logspace(-3, 2, ny)
+    param_range['range_y']= np.logspace(-2, 1, ny)
     param_range['pretty_y']= r"NTR $k_{on}$ [$sec^{-1}$]"
     return param_range
 ```
 
 ```{python}
 def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
-                                        is_force,
+                                        is_force_volume,
                                         **kwargs):    
-    if is_force:
+    if is_force_volume:
         v_N_L=762e-15
         v_C_L=4768e-15
     else:
@@ -378,7 +382,7 @@ def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
         v_C_L=2194e-15    
     ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
                                                 v_C_L= v_C_L)
-    ts.set_time_step(0.2e-3)
+    ts.set_time_step(0.1e-3)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
     ts.set_passive_nuclear_molar_rate_per_sec(passive_nuclear_molar_rate_per_sec) #get_passive_export_rate_per_sec(27,1))
@@ -409,8 +413,8 @@ import matplotlib as mpl
 mpl.rc('image', cmap='RdYlBu')
 
 def plot_stats_grids(stats_grids, transport_simulation,
-                        NC_min=0.0,
-                        NC_max= 10.0,
+                        NC_min=1.0,
+                        NC_max= 20.0,
                         vmax_import_export=10.0):
     fig, axes= plt.subplots(3,3, figsize=(14, 10), sharex=True, sharey=True)
     # N/C
@@ -420,9 +424,9 @@ def plot_stats_grids(stats_grids, transport_simulation,
                                   transport_simulation, 
                                   vmin= NC_min,
                                   vmax= NC_max,
-                                  levels= np.linspace(NC_min, NC_max, 21)
-#                                  levels= np.logspace(np.log10(NC_min),np.log10(NC_max),11),
-#                                  locator= mpl.ticker.LogLocator(base=1.05)
+#                                  levels= np.linspace(NC_min, NC_max, 21)
+                                  levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                                  locator= mpl.ticker.LogLocator(base=2.0)
                                  )
     # Bound fraction
     map_param_grid.plot_bound_fraction(param_range, stats_grids, 
@@ -481,30 +485,35 @@ def plot_stats_grids(stats_grids, transport_simulation,
 ```
 
 ```{python}
-param_range= get_param_range_traverse_kon(nx= 7, ny= 7)
+# TIME CONSUMING #
+param_range= get_param_range_traverse_kon(nx= 10, ny= 10)
 print(param_range)
 n_processors= multiprocessing.cpu_count()
-if True:
-    stats_grids_traverse_by_passive_force= {}
-    ts_traverse_by_passive_force= {}
-for passive in np.logspace(np.log10(0.01), np.log10(0.2), 12): #0.01,0.09,6):
-    for is_force in [False, True]:
-#        if is_force:
-#            continue
+CACHE = False
+if not CACHE:
+    stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
+    ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
+print("*** Starting multiprocess run ***")    
+for passive in np.logspace(np.log10(0.005), np.log10(0.15), 15): #0.01,0.09,6):
+    for is_force_volume in [False]: # [False, True]
         def transport_simulation_generator(**kwargs):
             return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
-                                                       is_force= is_force,
+                                                       is_force_volume= is_force_volume,
                                                        **kwargs)
         key= (passive, is_force)
         stats_grids_traverse_by_passive_force[key], \
         ts_traverse_by_passive_force[key] = \
             map_param_grid.map_param_grid_parallel( param_range,
-                                                equilibration_time_sec= 40.0,
+                                                equilibration_time_sec= 100.0,
                                                 n_processors= n_processors-3,
-                                        transport_simulation_generator= transport_simulation_generator)
+                                                transport_simulation_generator= transport_simulation_generator)
         print(f"passive rate {passive} is force {is_force}")
         plot_stats_grids(stats_grids_traverse_by_passive_force[key],
-                    ts_traverse_by_passive_force[key])
+                    ts_traverse_by_passive_force[key],
+                    vmax_import_export= 10.0,
+                    NC_max=30.0,
+                    NC_min=1.0)
+print("*** Finished multiprocess run ***")
 ```
 
 ```{python}
@@ -515,11 +524,22 @@ for key in keys:
     print(f"passive rate {key[0]} is force {key[1]}")
     plot_stats_grids(stats_grids_traverse_by_passive_force[key],
                     ts_traverse_by_passive_force[key],
-                    vmax_import_export= 10.0)
+                    vmax_import_export= 10.0,
+                     NC_max=3.0,
+                    NC_min=1.0)
 ```
 
 ```{python}
-print("hi")
+keys= sorted(stats_grids_traverse_by_passive_force.keys(), key=lambda x: (x[0],x[1]))
+for key in keys:
+    if key[1]:
+        continue
+    print(f"passive rate {key[0]} is force {key[1]}")
+    plot_stats_grids(stats_grids_traverse_by_passive_force[key],
+                    ts_traverse_by_passive_force[key],
+                    vmax_import_export= 10.0,
+                     NC_max=30.0,
+                    NC_min=1.0)
 ```
 
 # Map NLS strength, MW size, force
@@ -535,11 +555,27 @@ from transport_simulation import TransportSimulation
 import numpy as np
 import transport_simulation
 
+free_to_complex_rates = [
+    #0.0,
+             #0.001,
+             #0.00316,
+             #0.01,
+             #0.02 #2.11
+             0.045, #2.11
+             0.1,  #16.4
+             0.2
+             #0.45,
+             #1.0,
+             #2.0,
+             #4.5
+            ]
+
 def get_ts_with_parameters(MW= 27, 
                       NLS_strength= 0, 
                       is_force= False, 
+                           is_change_cell_volume,
                       **kwargs):
-    if is_force:
+    if is_force and is_change_cell_volume:
         v_N_L=762e-15
         v_C_L=4768e-15
     else:
@@ -573,20 +609,7 @@ def get_ts_with_parameters(MW= 27,
     return ts
 
 def get_free_to_complex_rate(NLS_strength):
-    rates = [0.0,
-             0.001,
-             0.00316,
-             0.01,
-             0.02, #2.11
-             0.045, #2.11
-             0.1,  #16.4
-             0.2,
-             0.45,
-             1.0,
-             2.0,
-             4.5
-            ]
-    return rates[NLS_strength]
+    return free_to_complex_rates[NLS_strength]
 
 def get_passive_nuclear_molar_rate_per_sec(MW, is_force): # TODO: verify it corresponds to multiplyng by concentration rather than nmolecules
     #TODO: generalize this - either from the literature or regression
@@ -605,16 +628,19 @@ def get_force_effect_on_diffusion(MW):
     """
     effects = {27:0.08214946, 
                 41:0.03027974, 
-                54:0.00026308, 
-                67:0.00272423 }
+                54:0.01, # 54:0.00026308, 
+                67:0.01 } #67:0.00272423 }
     return effects[MW]
 
 def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
-    s= 20.0
-    rate= { 27: [s*3.0,  s*10.0],
-            41: [s*3.0,  s*10.0],
-            54: [s*3.0, s*10.0],
-            67: [s*3.0,  s*10.0] }
+    no_force = 30.0
+    force = 200.0
+    rate_row = [no_force, force]
+    rate= { mw : rate_row for mw in [27, 41, 54, 67] }
+    #        27: [30.0,  200.0],
+    #        41: [30.0,  200.0],
+    #        54: [30.0, 200.0],
+    #        67: [30.0,  s*10.0] }
     i_force= 1 if is_force else 0
     return rate[MW][i_force]
 
@@ -681,16 +707,18 @@ def do_simulate(ts, simulation_time_sec):
     return ts.simulate(simulation_time_sec)
 
 def get_MW_stats_list_by_force(MW, simulation_time_sec,
-                              n_processors):
+                              n_processors,
+                              is_change_cell_volume= False):
     assert(MW in [27,41, 54, 67])
     stats_list_by_force= {}
     TSs_by_force= {}
     for is_force in [False, True]:
         TS_tuples= []
-        for i_NLS in range(9):
+        for i_NLS in range(len(free_to_complex_rates)):
             ts = get_ts_with_parameters(MW= MW,
                                     NLS_strength=i_NLS,
-                                  is_force= is_force)
+                                  is_force= is_force,
+                                       is_change_cell_volume= is_change_cell_volume)
             TS_tuples.append((ts, simulation_time_sec))
         pool= multiprocessing.Pool(processes= n_processors)
         stats_list_by_force[is_force]= pool.starmap(do_simulate,
@@ -803,7 +831,8 @@ MW_to_stats_list_by_force= {}
 for MW in [27, 41, 54, 67]:
     print(MW)
     MW_to_stats_list_by_force[MW]= get_MW_stats_list_by_force(MW, simulation_time_sec,
-                                                             n_processors= n_processors)
+                                                             n_processors= n_processors,
+                                                             is_change_cell_volume= False)
     plot_MW_stats_list(*MW_to_stats_list_by_force[MW])
     plt.show()  
 ```
@@ -820,23 +849,44 @@ for MW in [27, 41, 54, 67]:
 ```
 
 ```{python}
-
+##### TIME CONSUMING #####$
+simulation_time_sec= 40.0
+n_processors= 6
+MW_to_stats_list_by_force= {}            
+for MW in [27, 41, 54, 67]:
+    print(MW)
+    MW_to_stats_list_by_force[MW]= get_MW_stats_list_by_force(MW, simulation_time_sec,
+                                                             n_processors= n_processors,
+                                                             is_change_cell_volume= False)
+    plot_MW_stats_list(*MW_to_stats_list_by_force[MW])
+    plt.show()  
 ```
 
 ```{python}
-
+##### TIME CONSUMING #####$
+simulation_time_sec= 40.0
+n_processors= 6
+MW_to_stats_list_by_force= {}            
+for MW in [27, 41, 54, 67]:
+    print(MW)
+    MW_to_stats_list_by_force[MW]= get_MW_stats_list_by_force(MW, simulation_time_sec,
+                                                             n_processors= n_processors)
+    plot_MW_stats_list(*MW_to_stats_list_by_force[MW])
+    plt.show()  
 ```
 
 ```{python}
-
+print("hi")
 ```
 
 ```{python}
-
+import pickle
+with open("MW_to_stats_list_by_force.p","wb") as F:
+    pickle.dump(MW_to_stats_list_by_force, F)
 ```
 
 ```{python}
-
+print("Hello")
 ```
 
 ```{python}
