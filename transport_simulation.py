@@ -118,7 +118,10 @@ class TransportSimulation():
     def set_v_N_L(self, v_L, 
                   fix_concentration):
         '''
-        :param fix_concentration: if True, rescale nmol for nuclear moleculears to fix nuclear concentration,
+        Change nuclear volume 
+        :param v_L new volume in liters
+        :param fix_concentration: if True, rescale number of nuclear molecules
+          to fix nuclear (not cellular) concentration.
         '''
         print(f"change v_N_L from {self.v_N_L} to {v_L}")
         if fix_concentration:
@@ -132,13 +135,14 @@ class TransportSimulation():
     def set_v_C_L(self, v_L, 
                   fix_concentration):
         '''
-        :param fix_concentration: if True, rescale nmol for nuclear moleculears to fix cytoplasmic concentration,
+        Change cytoplasmic volume 
+        :param v_L new volume in liters
+        :param fix_concentration: if True, rescale number of
+          cytoplasmic molecules to fix cytoplasmic (not cellular) concentration.
         '''
-        print(f"change v_C_L from {self.v_N_L} to {v_L}")
-        if fix_concentration=='C':
+        print(f"change v_C_L from {self.v_C_L} to {v_L}")
+        if fix_concentration:
             s= v_L/self.v_C_L
-        elif fix_concentration=='cell':
-            s= (self.v_N_L+v_L)/(self.v_N_L+self.v_C_L)
             for key, value in self.nmol.items():
                 if self.get_compartment(key)=='C':
                     print(f"Scaling {key} by {s} from {value}")
