@@ -98,7 +98,7 @@ if __name__ == "__main__":
     for MW in results.keys():
         final_values['import'][MW] = get_import_rates(results[MW])
         final_values['export'][MW] = get_export_rates(results[MW])
-        final_values['N2C'][MW] = get_N2C_ratios(results[MW])
+        final_values['N:C'][MW] = get_N2C_ratios(results[MW])
 
     with open(f"stats_for_graph_{no_force}_{force}.pkl", 'wb') as f:
         pickle.dump(final_values, f)
