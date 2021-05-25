@@ -362,19 +362,19 @@ def get_param_range_traverse_kon(nx, ny):
     param_range= {}
     print(f"nx={nx} ny={ny}")
     param_range['tag_x']= "fraction_complex_NPC_traverse_per_sec"
-    param_range['range_x']= np.logspace(-1, 4, nx) 
+    param_range['range_x']= np.logspace(0, 3, nx) 
     param_range['pretty_x']= r"rate NPC traverse [$sec^{-1}$]"
     param_range['tag_y']= "rate_free_to_complex_per_sec"
-    param_range['range_y']= np.logspace(-3, 2, ny)
+    param_range['range_y']= np.logspace(-2, 1, ny)
     param_range['pretty_y']= r"NTR $k_{on}$ [$sec^{-1}$]"
     return param_range
 ```
 
 ```{python}
 def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
-                                        is_force,
+                                        is_force_volume,
                                         **kwargs):    
-    if is_force:
+    if is_force_volume:
         v_N_L=762e-15
         v_C_L=4768e-15
     else:
@@ -382,7 +382,7 @@ def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
         v_C_L=2194e-15    
     ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
                                                 v_C_L= v_C_L)
-    ts.set_time_step(0.2e-3)
+    ts.set_time_step(0.1e-3)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
     ts.set_passive_nuclear_molar_rate_per_sec(passive_nuclear_molar_rate_per_sec) #get_passive_export_rate_per_sec(27,1))
@@ -485,31 +485,34 @@ def plot_stats_grids(stats_grids, transport_simulation,
 ```
 
 ```{python}
-param_range= get_param_range_traverse_kon(nx= 7, ny= 7)
+# TIME CONSUMING #
+param_range= get_param_range_traverse_kon(nx= 10, ny= 10)
 print(param_range)
 n_processors= multiprocessing.cpu_count()
-if True:
-    stats_grids_traverse_by_passive_force= {}
-    ts_traverse_by_passive_force= {}
+CACHE = False
+if not CACHE:
+    stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
+    ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
 print("*** Starting multiprocess run ***")    
-for passive in np.logspace(np.log10(0.01), np.log10(0.2), 12): #0.01,0.09,6):
-    for is_force in [False, True]:
-#        if is_force:
-#            continue
+for passive in np.logspace(np.log10(0.005), np.log10(0.15), 15): #0.01,0.09,6):
+    for is_force_volume in [False]: # [False, True]
         def transport_simulation_generator(**kwargs):
             return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
-                                                       is_force= is_force,
+                                                       is_force_volume= is_force_volume,
                                                        **kwargs)
         key= (passive, is_force)
         stats_grids_traverse_by_passive_force[key], \
         ts_traverse_by_passive_force[key] = \
             map_param_grid.map_param_grid_parallel( param_range,
-                                                equilibration_time_sec= 40.0,
+                                                equilibration_time_sec= 100.0,
                                                 n_processors= n_processors-3,
-                                        transport_simulation_generator= transport_simulation_generator)
+                                                transport_simulation_generator= transport_simulation_generator)
         print(f"passive rate {passive} is force {is_force}")
         plot_stats_grids(stats_grids_traverse_by_passive_force[key],
-                    ts_traverse_by_passive_force[key])
+                    ts_traverse_by_passive_force[key],
+                    vmax_import_export= 10.0,
+                    NC_max=30.0,
+                    NC_min=1.0)
 print("*** Finished multiprocess run ***")
 ```
 
