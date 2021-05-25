@@ -500,14 +500,14 @@ for passive in np.logspace(np.log10(0.005), np.log10(0.15), 15): #0.01,0.09,6):
             return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
                                                        is_force_volume= is_force_volume,
                                                        **kwargs)
-        key= (passive, is_force)
+        key= (passive, is_force_volume)
         stats_grids_traverse_by_passive_force[key], \
         ts_traverse_by_passive_force[key] = \
             map_param_grid.map_param_grid_parallel( param_range,
                                                 equilibration_time_sec= 100.0,
                                                 n_processors= n_processors-3,
                                                 transport_simulation_generator= transport_simulation_generator)
-        print(f"passive rate {passive} is force {is_force}")
+        print(f"passive rate {passive} is old force_volume {is_force_volume}")
         plot_stats_grids(stats_grids_traverse_by_passive_force[key],
                     ts_traverse_by_passive_force[key],
                     vmax_import_export= 10.0,
