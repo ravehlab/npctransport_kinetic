@@ -54,7 +54,7 @@ def plot_MW_stats_list(stats_list_by_force, TSs_by_force):
             for i_row, ax in enumerate(axes):
                 ax.plot(x[plot_from_frame:],
                         ys[i_row][plot_from_frame:],
-                        label= get_free_to_complex_rate(i_NLS))
+                        label= free_to_complex_rates[i_NLS])
                 ax.set_xlabel(r"time [$sec$]")
                 if is_force:
                    ratios[i_row, i_NLS] *= ys[i_row][-1]
@@ -81,7 +81,7 @@ def plot_MW_stats_list(stats_list_by_force, TSs_by_force):
             title= "30 kPa" if is_force else "5 kPa"
             axes[0].set_title(title)
 
-    NLSs= [get_free_to_complex_rate(i_NLS) for i_NLS in range(ratios.shape[1])]
+    NLSs= [free_to_complex_rates[i_NLS] for i_NLS in range(ratios.shape[1])]
     ax_grid[2,0].set_title("Mechanosensitivity")
     for i_row, ax in enumerate(ax_grid[2,:]):
        ax.bar(range(len(NLSs)),
@@ -144,23 +144,8 @@ def get_N_C_ratio_stats(ts,
                                                    'C')
     return c_N_stats/c_C_stats
 
-def get_free_to_complex_rate(NLS_strength):
-    rates = [0.0,
-             0.001,
-             0.00316,
-             0.01,
-             0.02, #2.11
-             0.045, #2.11
-             0.1,  #16.4
-             0.2,
-             0.45,
-             1.0,
-             2.0,
-             4.5
-            ]
-    return rates[NLS_strength]
 
-def make_plot(stats_by_force, figname):
-    plot_MW_stats_list(*stats_by_force)
+def make_plot(stats_by_force, figname, free_to_complex_rates):
+    plot_MW_stats_list(*stats_by_force, free_to_complex_rates)
     plt.savefig(figname)
     
