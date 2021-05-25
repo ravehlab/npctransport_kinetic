@@ -1,4 +1,4 @@
-
+import pdb
 import sys
 import multiprocessing
 import transport_simulation 
@@ -16,7 +16,7 @@ def do_simulate(ts, simulation_time_sec):
 def get_ts_with_parameters(MW= 27, 
                            NLS_strength= 0, 
                            is_force= False, 
-                           is_change_cell_volume= True,
+                           is_change_cell_volume= False,
                            **kwargs):
     if is_force and is_change_cell_volume:
         v_N_L=762e-15
@@ -95,7 +95,7 @@ def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
     return rate[MW][i_force]
 
 def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
-                               is_change_cell_volume=True, nls_range=(0,9)):
+                               is_change_cell_volume=False, nls_range=(0,12)):
     assert(MW in [27,41, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
@@ -153,7 +153,8 @@ if __name__ == "__main__":
         final_result[key] = {}
         # TODO: double check this
         for is_force in [False, True]:
-            for i_NLS, stats in enumerate(result[is_force]):
+            for i_NLS, stats in enumerate(result[0][is_force]):
+                #pdb.set_trace()
                 final_result[key][(i_NLS, is_force)] = stats[key][-1]
 
     with open(f"final_{MW}_{simulation_time_sec}_{no_force}_{force}.pkl", 'wb') as f:
