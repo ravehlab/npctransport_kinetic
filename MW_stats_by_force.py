@@ -1,7 +1,7 @@
-
+import pdb
+import sys
 import multiprocessing
 import transport_simulation 
-import sys
 from transport_simulation import TransportSimulation
 from make_plots import make_plot
 
@@ -16,7 +16,7 @@ def do_simulate(ts, simulation_time_sec):
 def get_ts_with_parameters(MW= 27, 
                            NLS_strength= 0, 
                            is_force= False, 
-                           is_change_cell_volume= True,
+                           is_change_cell_volume= False,
                            **kwargs):
     if is_force and is_change_cell_volume:
         v_N_L=762e-15
@@ -95,7 +95,7 @@ def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
     return rate[MW][i_force]
 
 def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
-                               is_change_cell_volume=True, nls_range=(0,9)):
+                               is_change_cell_volume=False, nls_range=(0,12)):
     assert(MW in [27,41, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
@@ -130,15 +130,41 @@ if __name__ == "__main__":
         force = 200.0
     filename = f"MW_stats_list_{MW}_{simulation_time_sec}_{no_force}_{force}"
     
+    # result: is_force -> [stats_dictionary for NLS in free_to_complex_rates]
     result = get_MW_stats_list_by_force(MW, simulation_time_sec)
     make_plot(result, f"{filename}.png")
     print("Figure saved as {filename}.png")
 
     import pickle
+
+    # the keys of all the values we need for the final graphs:
+    keys_for_graphs = ['nuclear_importL_per_sec', 'nuclear_importU_per_sec', 
+                       'nuclear_exportL_per_sec', 'nuclear_exportU_per_sec']
+    for label in ['L', 'U']:
+        for side in ['N', 'C']:
+            # nmol in NPC
+            for source in ['import', 'export']:
+                keys_for_graphs.append('complex{}_NPC_{}_{}'.format(label, side, source))
+            # nmol in nucleus and cytoplasm
+            for state in ['free','complex']:
+                keys_for_graphs.append('{}{}_{}'.format(state, label, side))
+
+    final_result = dict()
+    for key in keys_for_graphs:
+        final_result[key] = {}
+        # TODO: double check this
+        for is_force in [False, True]:
+            for i_NLS, stats in enumerate(result[0][is_force]):
+                #pdb.set_trace()
+                final_result[key][(i_NLS, is_force)] = stats[key][-1]
+
+    with open(f"final_{MW}_{simulation_time_sec}_{no_force}_{force}.pkl", 'wb') as f:
+        pickle.dump(final_result, f)
+        print(f"Saved final results")
+
     with open(f"{filename}.pkl", 'wb') as f:
         pickle.dump(result, f)
-        print("Saved as {filename}.pkl")
-
+        print(f"Saved as {filename}.pkl")
 
 
 
