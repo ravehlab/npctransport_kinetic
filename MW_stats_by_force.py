@@ -69,10 +69,12 @@ def get_free_to_complex_rate(NLS_strength):
 
 def get_passive_nuclear_molar_rate_per_sec(MW, is_force): # TODO: verify it corresponds to multiplyng by concentration rather than nmolecules
     #TODO: generalize this - either from the literature or regression
-    base_rates={ 27:0.0805618, 
-                41:0.06022355, 
-                54:0.03301662, 
-                67:0.0287649 }
+    base_rates={ 27:0.0805618, # measured
+                34: (0.0805618+0.06022355)/2, #interpolation
+                41:0.06022355, # measured
+                47:(0.06022355+0.03301662)/2, #interpolation
+                54:0.03301662, # measured
+                67:0.0287649 } # measured
     rate= base_rates[MW]
     if is_force:
         rate += get_force_effect_on_diffusion(MW)
@@ -82,21 +84,23 @@ def get_force_effect_on_diffusion(MW):
     """
     The effect of force on passive diffusion as measured by experiment
     """
-    effects = {27:0.08214946, 
-                41:0.03027974, 
-                54:0.01, # 54:0.00026308, 
-                67:0.01 } #67:0.00272423 }
+    effects = {27:0.08214946, # measured
+                34:(0.08214946+0.03027974)/2, #interpolation
+                41:0.03027974, # measured
+                47:(0.03027974+0.01)/2, #interpolation
+                54:0.01, # 54:0.00026308, #modeling assumption
+                67:0.01 } #67:0.00272423 #modeling assumption
     return effects[MW]
 
 def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
     rate_row = [no_force, force]
-    rate= { mw : rate_row for mw in [27, 41, 54, 67] }
+    rate= { mw : rate_row for mw in [27, 34, 41, 47, 54, 67] }
     i_force= 1 if is_force else 0
     return rate[MW][i_force]
 
 def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
                                is_change_cell_volume=False, nls_range=(0,12)):
-    assert(MW in [27,41, 54, 67])
+    assert(MW in [27, 34, 41, 47, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
         print(f"Using {n_processors} processors")
