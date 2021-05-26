@@ -4,9 +4,8 @@
 #SBATCH --mem-per-cpu=2000M
 
 # Get folders correctly from USER_CONFIG.sh:
-MYDIR=`dirname $(readlink -f $0)`
-source $MYDIR/USER_CONFIG.sh
-#SCRIPTS_FOLDER="/cs/labs/ravehb/ravehb/Projects/npctransport_kinetic/"
+#MYDIR=`dirname $(readlink -f $0)`
+source /cs/labs/ravehb/ravehb/Projects/npctransport_kinetic/slurm/USER_CONFIG.sh
 
 echo Running simulation with MW=$1, no force NPC traverse rate = $2, force NPC traverse rate = $3
 
