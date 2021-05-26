@@ -1,6 +1,12 @@
-#!/bin/csh
+#!/usr/local/bin/bash
 
-#SBATCH --cpus-per-task=10
+#SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=2000M
 
-python3 /cs/labs/ravehb/littlem/npctransport_kinetic/MW_stats_by_force.py $1 40 $2 $3 $4
+# Get folders correctly from USER_CONFIG.sh:
+#MYDIR=`dirname $(readlink -f $0)`
+source /cs/labs/ravehb/ravehb/Projects/npctransport_kinetic/slurm/USER_CONFIG.sh
+
+echo Running simulation with MW=$1, no force NPC traverse rate = $2, force NPC traverse rate = $3
+
+python3 $SCRIPTS_FOLDER/MW_stats_by_force.py $1 100 $2 $3

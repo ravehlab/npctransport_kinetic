@@ -4,11 +4,15 @@ import multiprocessing
 import transport_simulation 
 from transport_simulation import TransportSimulation
 from make_plots import make_plot
+import numpy as np
+import os
 
 __all__ = ["get_MW_stats_list_by_force"]
 
 no_force = 30.0
 force = 200.0
+free_to_complex_rates = np.logspace(np.log10(0.2), 0, 7)
+OVERRIDE=False # True if override existing output file
 
 def do_simulate(ts, simulation_time_sec):
     return ts.simulate(simulation_time_sec)
@@ -52,20 +56,7 @@ def get_ts_with_parameters(MW= 27,
     return ts
 
 def get_free_to_complex_rate(NLS_strength):
-    rates = [0.0,
-             0.001,
-             0.00316,
-             0.01,
-             0.02, #2.11
-             0.045, #2.11
-             0.1,  #16.4
-             0.2,
-             0.45,
-             1.0,
-             2.0,
-             4.5
-            ]
-    return rates[NLS_strength]
+    return free_to_complex_rates[NLS_strength]
 
 def get_passive_nuclear_molar_rate_per_sec(MW, is_force): # TODO: verify it corresponds to multiplyng by concentration rather than nmolecules
     #TODO: generalize this - either from the literature or regression
@@ -99,16 +90,17 @@ def get_fraction_complex_NPC_traverse_per_sec(MW, is_force):
     return rate[MW][i_force]
 
 def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
-                               is_change_cell_volume=False, nls_range=(0,12)):
+                               is_change_cell_volume=False):
     assert(MW in [27, 34, 41, 47, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
+        print(f"Using {n_processors} processors")
         
     stats_list_by_force= {}
     TSs_by_force= {}
     for is_force in [False, True]:
         TS_tuples= []
-        for i_NLS in range(*nls_range):
+        for i_NLS in range(len(free_to_complex_rates)):
             ts = get_ts_with_parameters(MW=MW,
                                         NLS_strength=i_NLS,
                                         is_force=is_force,
@@ -132,10 +124,15 @@ if __name__ == "__main__":
         no_force = 30.0
         force = 200.0
     filename = f"MW_stats_list_{MW}_{simulation_time_sec}_{no_force}_{force}"
+    FINAL_PICKLE=f"final_{MW}_{simulation_time_sec}_{no_force}_{force}.pkl"
+    
+    if(not OVERRIDE and os.path.exists(FINAL_PICKLE)):
+        print(f"File {FINAL_PICKLE} already exists - set OVERRIDE flag to true to override")
+        sys.exit(0)
     
     # result: is_force -> [stats_dictionary for NLS in free_to_complex_rates]
     result = get_MW_stats_list_by_force(MW, simulation_time_sec)
-    make_plot(result, f"{filename}.png")
+    make_plot(result, f"{filename}.png", free_to_complex_rates)
     print("Figure saved as {filename}.png")
 
     import pickle
@@ -161,13 +158,14 @@ if __name__ == "__main__":
                 #pdb.set_trace()
                 final_result[key][(i_NLS, is_force)] = stats[key][-1]
 
-    with open(f"final_{MW}_{simulation_time_sec}_{no_force}_{force}.pkl", 'wb') as f:
+    with open(FINAL_PICKLE, 'wb') as f:
         pickle.dump(final_result, f)
         print(f"Saved final results")
 
-    with open(f"{filename}.pkl", 'wb') as f:
-        pickle.dump(result, f)
-        print(f"Saved as {filename}.pkl")
+    if(False):    # Too much disk space and uneccessary
+        with open(f"{filename}.pkl", 'wb') as f:
+            pickle.dump(result, f)
+            print(f"Saved as {filename}.pkl")
 
 
 
