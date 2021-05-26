@@ -26,7 +26,8 @@ def get_ts_with_parameters(MW= 27,
         v_N_L=627e-15
         v_C_L=2194e-15    
     ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
-                                                v_C_L= v_C_L)
+                                                v_C_L= v_C_L,
+                                                Ran_cell_M= get_ts_with_parameters.Ran_cell_M)
     ts.set_time_step(0.1e-3)
     ts.set_NPC_dock_sites(n_NPCs= 2000, 
                         n_dock_sites_per_NPC= 500)
@@ -110,12 +111,17 @@ def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
     return (stats_list_by_force, TSs_by_force)
 
 if __name__ == "__main__":
+    get_ts_with_parameters.Ran_cell_M = 20e-6 # static variable 
+
     MW = int(sys.argv[1])
     simulation_time_sec = float(sys.argv[2])
     
     if len(sys.argv) > 3:
         no_force = float(sys.argv[3])
         force = float(sys.argv[4])
+        if len(sys.argv) > 5:
+            ran_factor = float(sys.argv[5])
+            get_ts_with_parameters.Ran_cell_M *= ran_factor
     else:
         no_force = 30.0
         force = 200.0
