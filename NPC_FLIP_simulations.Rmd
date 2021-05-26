@@ -451,8 +451,11 @@ def plot_stats_grids(stats_grids, transport_simulation,
                     Z_label= 'import:export',
                     vmin= NC_min,
                     vmax= NC_max,
-                    levels=np.linspace(NC_min, NC_max, 21),
-                    extend='both')
+#                   levels= np.linspace(NC_min, NC_max, 21)
+                    levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                    locator= mpl.ticker.LogLocator(base=2.0) ,                                  
+                    extend='both'
+                                  )
     
     plt.sca(axes[2,0])
     GTP_ratio= stats_grids['GTP_N']/stats_grids['GTP_C']
@@ -489,7 +492,7 @@ def plot_stats_grids(stats_grids, transport_simulation,
 param_range= get_param_range_traverse_kon(nx= 10, ny= 10)
 print(param_range)
 n_processors= multiprocessing.cpu_count()
-CACHE = False
+CACHE = True
 if not CACHE:
     stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
     ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
@@ -514,6 +517,16 @@ for passive in np.logspace(np.log10(0.005), np.log10(0.15), 15): #0.01,0.09,6):
                     NC_max=30.0,
                     NC_min=1.0)
 print("*** Finished multiprocess run ***")
+```
+
+```{python}
+import pickle
+with open("Heatmaps_May26.pkl","wb") as F:
+    pickle.dump(
+        [stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force],
+               F)
+# !ls
+    
 ```
 
 ```{python}

@@ -5,12 +5,15 @@ import transport_simulation
 from transport_simulation import TransportSimulation
 from make_plots import make_plot
 import numpy as np
+import os
 
 __all__ = ["get_MW_stats_list_by_force"]
 
 no_force = 30.0
 force = 200.0
-free_to_complex_rates = np.logspace(np.log(0.2), 0, 16)
+free_to_complex_rates = np.logspace(np.log10(0.2), 0, 7)
+OVERRIDE=False # True if override existing output file
+
 def do_simulate(ts, simulation_time_sec):
     return ts.simulate(simulation_time_sec)
 
@@ -92,6 +95,7 @@ def get_MW_stats_list_by_force(MW, simulation_time_sec, n_processors=None, \
     assert(MW in [27, 34, 41, 47, 54, 67])
     if n_processors is None:
         n_processors= multiprocessing.cpu_count()
+        print(f"Using {n_processors} processors")
         
     stats_list_by_force= {}
     TSs_by_force= {}
@@ -126,6 +130,11 @@ if __name__ == "__main__":
         no_force = 30.0
         force = 200.0
     filename = f"MW_stats_list_{MW}_{simulation_time_sec}_{no_force}_{force}"
+    FINAL_PICKLE=f"final_{MW}_{simulation_time_sec}_{no_force}_{force}.pkl"
+    
+    if(not OVERRIDE and os.path.exists(FINAL_PICKLE)):
+        print(f"File {FINAL_PICKLE} already exists - set OVERRIDE flag to true to override")
+        sys.exit(0)
     
     # result: is_force -> [stats_dictionary for NLS in free_to_complex_rates]
     result = get_MW_stats_list_by_force(MW, simulation_time_sec)
@@ -155,13 +164,14 @@ if __name__ == "__main__":
                 #pdb.set_trace()
                 final_result[key][(i_NLS, is_force)] = stats[key][-1]
 
-    with open(f"final_{MW}_{simulation_time_sec}_{no_force}_{force}.pkl", 'wb') as f:
+    with open(FINAL_PICKLE, 'wb') as f:
         pickle.dump(final_result, f)
         print(f"Saved final results")
 
-    with open(f"{filename}.pkl", 'wb') as f:
-        pickle.dump(result, f)
-        print(f"Saved as {filename}.pkl")
+    if(False):    # Too much disk space and uneccessary
+        with open(f"{filename}.pkl", 'wb') as f:
+            pickle.dump(result, f)
+            print(f"Saved as {filename}.pkl")
 
 
 
