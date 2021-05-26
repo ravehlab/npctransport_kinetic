@@ -3,3 +3,4 @@ Tmp/
 Old/
 *~
 __pycache__
+slurm/x_*
