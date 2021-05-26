@@ -2,6 +2,15 @@
 
 BASE_FOLDER="`pwd -P`"
 
+RAN_factor=1
+
+while getopts r: flag
+do
+    case "${flag}" in
+        r) RAN_factor=${OPTARG};;
+    esac
+done
+
 #for x_start in 10.0 20.0 30.0 40.0 100.0; do 
 #    for scale in 1.5 2.5 5.0 10.0 15.0 20.0; do 
 for x_start in 5.0 10.0 15.0; do 
@@ -13,7 +22,7 @@ for x_start in 5.0 10.0 15.0; do
             mkdir "$tag"
 	fi
         cd "$tag"
-        bash ../run_all_mw.sh $x_start $x_end
+        bash ../run_all_mw.sh $x_start $x_end $RAN_factor
 	cd "$BASE_FOLDER"
     done
 done
