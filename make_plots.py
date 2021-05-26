@@ -7,7 +7,7 @@ import matplotlib
 #matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
-def plot_MW_stats_list(stats_list_by_force, TSs_by_force):
+def plot_MW_stats_list(stats_list_by_force, TSs_by_force, free_to_complex_rates):
     plot_from_sec=  0.1 # ts.bleach_start_time_sec + 1.0
     extras= [#'GTP_N',
             #'GDP_N',
