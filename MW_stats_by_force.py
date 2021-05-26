@@ -10,7 +10,7 @@ __all__ = ["get_MW_stats_list_by_force"]
 
 no_force = 30.0
 force = 200.0
-free_to_complex_rates = np.logspace(np.log(0.2), 0, 16)
+free_to_complex_rates = np.logspace(np.log10(0.2), 0, 7)
 def do_simulate(ts, simulation_time_sec):
     return ts.simulate(simulation_time_sec)
 
@@ -154,9 +154,10 @@ if __name__ == "__main__":
         pickle.dump(final_result, f)
         print(f"Saved final results")
 
-    with open(f"{filename}.pkl", 'wb') as f:
-        pickle.dump(result, f)
-        print(f"Saved as {filename}.pkl")
+    if(False):    # Too much disk space
+        with open(f"{filename}.pkl", 'wb') as f:
+            pickle.dump(result, f)
+            print(f"Saved as {filename}.pkl")
 
 
 
