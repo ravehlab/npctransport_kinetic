@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     final_values['import'] = {}
     final_values['export'] = {}
-    final_values['N2C'] = {}
+    final_values['N:C'] = {}
     for MW in results.keys():
         final_values['import'][MW] = get_import_rates(results[MW])
         final_values['export'][MW] = get_export_rates(results[MW])

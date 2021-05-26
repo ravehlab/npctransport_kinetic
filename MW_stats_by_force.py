@@ -162,7 +162,7 @@ if __name__ == "__main__":
         pickle.dump(final_result, f)
         print(f"Saved final results")
 
-    if(False):    # Too much disk space
+    if(False):    # Too much disk space and uneccessary
         with open(f"{filename}.pkl", 'wb') as f:
             pickle.dump(result, f)
             print(f"Saved as {filename}.pkl")
