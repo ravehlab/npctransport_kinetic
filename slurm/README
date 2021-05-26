@@ -1,0 +1,4 @@
+NOTE: You MUST configure USER_CONFIG.sh before you run Slurm on these files
+
+This folder is intended for running Slurm over a big bunch of files.
+Begin with scan.sh
