@@ -4,3 +4,4 @@ Old/
 *~
 __pycache__
 slurm/x_*
+*.pkl
