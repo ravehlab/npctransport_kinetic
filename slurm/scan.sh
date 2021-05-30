@@ -16,7 +16,7 @@ done
 for x_start in 5.0 10.0 15.0; do 
     for scale in 2.5 3.0 3.5 4.0 4.5 5.0; do 
         x_end=`echo $x_start $scale | awk '{printf "%.1f", $1*$2}'`
-        tag=x_${x_start}_to_${x_end}
+        tag=x_${x_start}_to_${x_end}_ran_factor_$RAN_factor
         echo $tag
 	if [ ! -e "$tag" ] ; then
             mkdir "$tag"
