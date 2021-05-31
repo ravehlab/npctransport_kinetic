@@ -373,6 +373,7 @@ def get_param_range_traverse_kon(nx, ny):
 ```{python}
 def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
                                         is_force_volume,
+                                        Ran_cell_M = 20.0e-6,
                                         **kwargs):    
     if is_force_volume:
         v_N_L=762e-15
@@ -400,6 +401,11 @@ def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
     ts.rate_free_to_complex_per_sec = 0.01 # SCAN
     ts.fraction_complex_NPC_traverse_per_sec=4000 # SCAN
     ts.set_params(**kwargs) # override defaults
+    self.set_RAN_distribution(Ran_cell_M= Ran_cell_M, # total physiological concentration of Ran # TODO: check in the literature 
+                                  parts_GTP_N=1000,
+                                  parts_GTP_C=1,
+                                  parts_GDP_N=1,
+                                  parts_GDP_C=1000)
     return ts
 test_ts= get_transport_simulation_by_passive(0.02, False)
 print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
@@ -517,16 +523,17 @@ for passive in np.logspace(np.log10(0.005), np.log10(0.15), 15): #0.01,0.09,6):
                     NC_max=30.0,
                     NC_min=1.0)
 print("*** Finished multiprocess run ***")
+# Pickle results
+import pickle
+with open("./Results/Heatmaps_Ran20uM.pkl","wb") as F:
+     pickle.dump(
+        [stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force],
+                 F)
 ```
 
 ```{python}
-import pickle
-with open("Heatmaps_May26.pkl","wb") as F:
-    pickle.dump(
-        [stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force],
-               F)
+
 # !ls
-    
 ```
 
 ```{python}
@@ -553,6 +560,101 @@ for key in keys:
                     vmax_import_export= 10.0,
                      NC_max=30.0,
                     NC_min=1.0)
+```
+
+## Heatmaps with Ran of 40 mM
+
+```{python}
+# TIME CONSUMING #            
+Ran_cell_M = 40.0e-6
+param_range= get_param_range_traverse_kon(nx= 7, ny= 7)
+print(param_range)
+n_processors= multiprocessing.cpu_count()
+CACHE = True
+if not CACHE:
+    stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
+    ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
+print("*** Starting multiprocess run ***")    
+for passive in np.logspace(np.log10(0.01), np.log10(0.15), 15): #0.01,0.09,6):
+    for is_force_volume in [False]: # [False, True]
+        def transport_simulation_generator(**kwargs):
+            print(f"Ran: {Ran_cell_M:.6f} M")
+            return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
+                                                       is_force_volume= is_force_volume,
+                                                       Ran_cell_M = Ran_cell_M,
+                                                       **kwargs)
+        key= (passive, is_force_volume)
+        stats_grids_traverse_by_passive_force[key], \
+        ts_traverse_by_passive_force[key] = \
+            map_param_grid.map_param_grid_parallel( param_range,
+                                                equilibration_time_sec= 100.0,
+                                                n_processors= n_processors//2,
+                                                transport_simulation_generator= transport_simulation_generator)
+        print(f"passive rate {passive} is old force_volume {is_force_volume}")
+        plot_stats_grids(stats_grids_traverse_by_passive_force[key],
+                    ts_traverse_by_passive_force[key],
+                    vmax_import_export= 10.0,
+                    NC_max=30.0,
+                    NC_min=1.0)
+print("*** Finished multiprocess run ***")
+
+# Pickle results
+import pickle
+with open(f"./Results/Heatmaps_Ran{(1E6*Ran_cell_M):.0f}uM.pkl","wb") as F:
+     pickle.dump(
+        [stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force],
+                 F)
+# !ls Results
+```
+
+```{python}
+
+```
+
+## Heatmaps with Ran of 80 mM
+
+```{python}
+# TIME CONSUMING #
+Ran_cell_M = 80.0e-6
+param_range= get_param_range_traverse_kon(nx= 7, ny= 7)
+print(param_range)
+n_processors= multiprocessing.cpu_count()
+CACHE = True
+if not CACHE:
+    stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
+    ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
+print("*** Starting multiprocess run ***")    
+for passive in np.logspace(np.log10(0.01), np.log10(0.1), 10): #0.01,0.09,6):
+    for is_force_volume in [False]: # [False, True]
+        def transport_simulation_generator(**kwargs):
+            print(f"Ran: {Ran_cell_M:.6f} M")
+            return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
+                                                       is_force_volume= is_force_volume,
+                                                       Ran_cell_M = Ran_cell_M,
+                                                       **kwargs)
+        key= (passive, is_force_volume)
+        if key in stats_grids_traverse_by_passive_force:
+            continue
+        stats_grids_traverse_by_passive_force[key], \
+        ts_traverse_by_passive_force[key] = \
+            map_param_grid.map_param_grid_parallel( param_range,
+                                                equilibration_time_sec= 100.0,
+                                                n_processors= n_processors//2,
+                                                transport_simulation_generator= transport_simulation_generator)
+        print(f"passive rate {passive} is old force_volume {is_force_volume}")
+        plot_stats_grids(stats_grids_traverse_by_passive_force[key],
+                    ts_traverse_by_passive_force[key],
+                    vmax_import_export= 10.0,
+                    NC_max=30.0,
+                    NC_min=1.0)
+print("*** Finished multiprocess run ***")
+# Pickle results
+import pickle
+with open(f"./Results/Heatmaps_Ran{(1E6*Ran_cell_M):.0f}uM.pkl","wb") as F:
+     pickle.dump(
+        [stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force],
+                 F)
+# !ls Results
 ```
 
 # Map NLS strength, MW size, force

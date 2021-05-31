@@ -114,6 +114,34 @@ class TransportSimulation():
         self.nmol["GTP_C"] = nmol_Ran_cell * RAN_distribution[1]
         self.nmol["GDP_N"] = nmol_Ran_cell * RAN_distribution[2]
         self.nmol["GDP_C"] = nmol_Ran_cell * RAN_distribution[3]
+        
+
+    def reset_cargo_concentration(self, cargo_cytoplasmic_M, fraction_bound = 0.0):
+        # Cytoplasm:
+        self.set_concentration_M("complexL_C", 
+                                 fraction_bound*cargo_cytoplasmic_M)  # Cytoplasmic concentration of labeled cargo-importin complex in M
+        self.set_concentration_M("freeL_C", 
+                                 (1.0-fraction_bound)*cargo_cytoplasmic_M)  # Cytoplasmic concentration of labeled cargo in M
+        self.nmol["complexU_C"]= 0 # (unlabeled)
+        self.nmol["freeU_C"]= 0 # (unlabeled)
+        # Nucleus:
+        self.set_concentration_M("cargo_N", 0e-5)  # Nuclear concentration of labeled cargo in M
+        self.nmol["complexL_N"] = 0 # number of cargo-importin complexes in nucleus (labeled)
+        self.nmol["freeL_N"]= self.nmol["cargo_N"] - self.nmol["complexL_N"] # number of free cargo molecules in nucleus (labeled)
+        self.nmol["complexU_N"]= 0 # (unlabeled)
+        self.nmol["freeU_N"]= 0 # (unlabeled)
+        del self.nmol["cargo_N"] 
+        # NPC:
+        self.nmol["complexL_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
+        self.nmol["complexL_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
+        self.nmol["complexU_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
+        self.nmol["complexU_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
+        self.nmol["complexL_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
+        self.nmol["complexL_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
+        self.nmol["complexU_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
+        self.nmol["complexU_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
+        
+        
 
     def set_v_N_L(self, v_L, 
                   fix_concentration):
@@ -223,7 +251,9 @@ class TransportSimulation():
         self.max_passive_diffusion_rate_nmol_per_sec_per_M= 20000 # as the name suggests, without accounting for competition effects # TODO: in future, a single number for both import and export that is independent of C/N volumes, # of NPCs etc
         self.bleach_volume_L_per_sec= 1.0e-15 # cytoplasmic cargo volume being bleached per second
         self.bleach_start_time_sec= np.inf # no bleaching by default
-        self.Ran_cell_M= 20e-6
+        self.Ran_cell_M = 20e-6
+        self.init_cargo_cytoplasm_M = 50e-6
+        self.init_fraction_bound = 0.0
         self.set_params(**kwargs)
 
 
@@ -240,30 +270,7 @@ class TransportSimulation():
         self.v_N_L= v_N_L # Nuclear volume in L
 #        self.v_C_L= 10e-15 # Cytoplsmic volume in L
 #        self.v_N_L= 5e-15 # Nuclear volume in L
-        # NPC:
-        self.nmol["complexL_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
-        self.nmol["complexL_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
-        self.nmol["complexU_NPC_N_import"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
-        self.nmol["complexU_NPC_C_import"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
-        self.nmol["complexL_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (labeled)
-        self.nmol["complexL_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (labeled)
-        self.nmol["complexU_NPC_N_export"]= 0 # number of cargo-importin complexes docked to the NPC on the nuclues side (unlabeled)
-        self.nmol["complexU_NPC_C_export"]= 0 # number of cargo-importin complexes docked to the NPC on the cytoplasmic side (unlabeled)
-        # Cytoplasm:
-        init_fraction_bound= 0.0
-        self.set_concentration_M("complexL_C", 
-                                 init_fraction_bound*50e-6)  # Nuclear concentration of labeled cargo-importin complex in M
-        self.set_concentration_M("freeL_C", 
-                                 (1.0-init_fraction_bound)*50e-6)  # Nuclear concentration of labeled cargo in M
-        self.nmol["complexU_C"]= 0 # (unlabeled)
-        self.nmol["freeU_C"]= 0 # (unlabeled)
-        # Nucleus:
-        self.set_concentration_M("cargo_N", 0e-5)  # Nuclear concentration of labeled cargo in M
-        self.nmol["complexL_N"] = 0 # number of cargo-importin complexes in nucleus (labeled)
-        self.nmol["freeL_N"]= self.nmol["cargo_N"] - self.nmol["complexL_N"] # number of free cargo molecules in nucleus (labeled)
-        self.nmol["complexU_N"]= 0 # (unlabeled)
-        self.nmol["freeU_N"]= 0 # (unlabeled)
-        del self.nmol["cargo_N"] 
+        self.reset_cargo_concentration(self.init_cargo_cytoplasm_M, self.init_fraction_bound)
         # import export per dt_sec
         self.nmol["nuclear_importL_per_sec"] = 0 # molar rate of raw import to the nucleus, given cytoplasmic concentratio (dN/dt=rate*[C])
         self.nmol["nuclear_exportL_per_sec"] = 0 # molar rate of raw import to the nucleus, given cytoplasmic concentratio (dN/dt=rate*[C])
