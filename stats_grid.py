@@ -134,24 +134,22 @@ def plot_stats_grids(stats_grids, transport_simulation, param_range,
 def main_test(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_passive=10, pkl=None):
     print(output, passive_range, npc_traverse_range, k_on_range, nx, ny, n_passive, pkl)
     
-def main(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_passive=10, pkl=None):
+def main(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_passive=10, c_M=50e-6, pkl=None):
     test_ts= get_transport_simulation_by_passive(0.02, False)
     print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
     Ran_cell_M = 80.0e-6
     param_range= get_param_range_traverse_kon(nx, ny, npc_traverse_range, k_on_range)
     print(param_range)
     n_processors= multiprocessing.cpu_count()
-    CACHE = True
-    if not CACHE:
-        stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
-        ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
+    stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
+    ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
     print("*** Starting multiprocess run ***")    
     
     for passive in np.logspace(*np.log10(passive_range), n_passive): #0.01,0.09,6):
             def transport_simulation_generator(**kwargs):
                 print(f"Ran: {Ran_cell_M:.6f} M")
                 return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
-                                                           Ran_cell_M = Ran_cell_M,
+                                                           Ran_cell_M = Ran_cell_M, init_cargo_cytoplasm_M=c_M,
                                                            **kwargs)
             key= passive
             if key in stats_grids_traverse_by_passive_force:
@@ -170,7 +168,7 @@ def main(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_
                         NC_max=30.0,
                         NC_min=1.0)
             filename = f"{output}_p_{key}.png"
-            plt.savefig()
+            plt.savefig(filename)
             print(f"Saved to {filename}")
             
             
@@ -215,6 +213,6 @@ if __name__ == "__main__":
         args.output = f"Heatmaps_for_c_{args.cargo_concentration}_"\
                       f"n_{args.npc_traverse_range[0]}_{args.npc_traverse_range[1]}_"\
                       f"K_{args.k_on_range[0]}_{args.k_on_range[1]}"
-
+    print(args)
     main(args.output, args.passive_range, args.npc_traverse_range, args.k_on_range, \
-         args.nx, args.ny, args.n_passive, args.pickle_file)
+         args.nx, args.ny, args.n_passive, args.cargo_concentration, args.pickle_file)
