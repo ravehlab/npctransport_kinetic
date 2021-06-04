@@ -5,6 +5,7 @@ import map_param_grid
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import transport_simulation 
+import pickle
 from transport_simulation import TransportSimulation
 
 main_description = "Create stats grids, with parameters fraction_complex_NPC_traverse_per_sec, rate_free_to_complex_per_sec, max_passive_diffusion_rate_nmol_per_sec_per_M, over a chosen range."
@@ -14,6 +15,47 @@ epilogue = "For example, running 'python stats_grid.py -c 50e-9 -nx 20 -ny 20 -n
            " (-n 0 3), and cargo concentration of 50e-9 M, each figure will have increasing passive diffusion"\
            " rates, in the range 0.001-0.01 (-p), and the figures will be saved as 'example_fig_p_{passive}.png"\
            " (-o example_fig )for each passive value in that range."
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=main_description, epilog=epilogue)
+    parser.add_argument("-j", "--number-of-processors", type=int, default=1,
+                        help="number of processors to use in parallel")
+    parser.add_argument("-np", "--n-passive", type=int, default=10, \
+                        help="the number of values in the range --pasive-range to run")
+    parser.add_argument("-p", "--passive-range", metavar=("MIN_PASSIVE","MAX_PASSIVE"), \
+                        help="The range of values for passive_nuclear_molar_rate_per_sec", \
+                        type=float, nargs=2, default=(0.01, 0.1))
+    parser.add_argument("-n", "--npc-traverse-range", metavar=("MIN_RATE","MAX_RATE"), \
+                        help="The range of values for fraction_complex_NPC_traverse_per_sec in log scale", \
+                        type=float, nargs=2, default=(0., 3.0))
+    parser.add_argument("--k-on-range", metavar=("MIN_K_ON", "MAX_K_ON"), \
+                        help="The range of values for free_to_complex_per_sec in log scale", \
+                        type=float, nargs=2, default=(-2., 1.0))
+    parser.add_argument("-nx", type=int, default=20, \
+                        help="Number of NPC_traverse_per_sec values to run in the range defined "\
+                             "by --npc_traverse_range")
+    parser.add_argument("-ny", type=int, default=20,
+                        help="Number of rate_free_to_complex_per_sec values to run in the range "\
+                             "defined by --k-on-range")
+    parser.add_argument("-c", "--cargo-concentration-M", type=float,
+                        help="the concentration of cargo in "\
+                        "the cell, in Molars", default=50e-6)
+    parser.add_argument("-pkl", "--pickle-file", type=str, \
+                        help="Filename of output pickle file. If supplied, the heatmap will be"\
+                             " pickled and saved to this file.")
+    parser.add_argument("-o", "--output", type=str, help="Output filename prefix. The final output"\
+                        " filenames will be {output}_p_{passive}.png, for each passive in "\
+                        "--passive-range")
+    args = parser.parse_args()
+
+    if args.output is None:
+        args.output = f"Heatmaps_for_c_{args.cargo_concentration}_"\
+                      f"n_{args.npc_traverse_range[0]}_{args.npc_traverse_range[1]}_"\
+                      f"K_{args.k_on_range[0]}_{args.k_on_range[1]}"
+    print(args)
+    return args
+ 
 
 
 def get_param_range_traverse_kon(nx, ny, npc_traverse_range=(0,3), k_on_range=(-2,1)):
@@ -145,10 +187,12 @@ def main(output,
          passive_range,
          npc_traverse_range,
          k_on_range,
-         nx=20, ny=20,
+         nx=20,
+         ny=20,
          n_passive=10,
-         c_M=50e-6,
-         pkl=None):
+         cargo_concentration_M=50e-6,
+         pickle_file=None,
+         number_of_processors=1):
     test_ts= get_transport_simulation_by_passive(0.02, False)
     print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
     Ran_cell_M = 80.0e-6
@@ -165,7 +209,7 @@ def main(output,
                 continue
             tsg_params = {"passive":passive,
                           "Ran_cell_M":Ran_cell_M,
-                          "c_M": c_M}
+                          "c_M": cargo_concentration_M}
             stats_grids_traverse_by_passive_force[key], \
             ts_traverse_by_passive_force[key] = \
                 map_param_grid.map_param_grid_parallel\
@@ -192,41 +236,9 @@ def main(output,
     # Pickle results
         with open(pkl, "wb") as F:
             pickle.dump([stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force], F)
-            
+
             
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=main_description, epilog=epilogue)
-    parser.add_argument("-np", "--n-passive", type=int, default=10, \
-                        help="the number of values in the range --pasive-range to run")
-    parser.add_argument("-p", "--passive-range", metavar=("MIN_PASSIVE","MAX_PASSIVE"), \
-                        help="The range of values for passive_nuclear_molar_rate_per_sec", \
-                        type=float, nargs=2, default=(0.01, 0.1))
-    parser.add_argument("-n", "--npc-traverse-range", metavar=("MIN_RATE","MAX_RATE"), \
-                        help="The range of values for fraction_complex_NPC_traverse_per_sec in log scale", \
-                        type=float, nargs=2, default=(0., 3.0))
-    parser.add_argument("--k-on-range", metavar=("MIN_K_ON", "MAX_K_ON"), \
-                        help="The range of values for free_to_complex_per_sec in log scale", \
-                        type=float, nargs=2, default=(-2., 1.0))
-    parser.add_argument("-nx", type=int, default=20, \
-                        help="Number of NPC_traverse_per_sec values to run in the range defined "\
-                             "by --npc_traverse_range")
-    parser.add_argument("-ny", type=int, default=20,
-                        help="Number of rate_free_to_complex_per_sec values to run in the range "\
-                             "defined by --k-on-range")
-    parser.add_argument("-c", "--cargo-concentration", type=float, help="the concentration of cargo in "\
-                        "the cell, in Molars", default=50e-6)
-    parser.add_argument("-pkl", "--pickle-file", type=str, \
-                        help="Filename of output pickle file. If supplied, the heatmap will be"\
-                             " pickled and saved to this file.")
-    parser.add_argument("-o", "--output", type=str, help="Output filename prefix. The final output"\
-                        " filenames will be {output}_p_{passive}.png, for each passive in "\
-                        "--passive-range")
-    args = parser.parse_args()
-
-    if args.output is None:
-        args.output = f"Heatmaps_for_c_{args.cargo_concentration}_"\
-                      f"n_{args.npc_traverse_range[0]}_{args.npc_traverse_range[1]}_"\
-                      f"K_{args.k_on_range[0]}_{args.k_on_range[1]}"
-    print(args)
-    main(args.output, args.passive_range, args.npc_traverse_range, args.k_on_range, \
-         args.nx, args.ny, args.n_passive, args.cargo_concentration, args.pickle_file)
+    args = parse_args()
+    main(**vars(args))
+g
