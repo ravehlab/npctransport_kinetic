@@ -173,9 +173,6 @@ def plot_stats_grids(stats_grids, transport_simulation, param_range,
                     levels=np.linspace(0,20,21), 
                      extend='both')
 
-def main_test(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_passive=10, pkl=None):
-    print(output, passive_range, npc_traverse_range, k_on_range, nx, ny, n_passive, pkl)
-
 def transport_simulation_generator(passive, Ran_cell_M, c_M, **kwargs):
     print(f"Ran: {Ran_cell_M:.6f} M")
     return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
@@ -232,10 +229,12 @@ def main(output,
             
     print("*** Finished multiprocess run ***")
 
-    if pkl is not None:
+    if pickle_file is not None:
     # Pickle results
-        with open(pkl, "wb") as F:
-            pickle.dump([stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force], F)
+        with open(pickle_file, "wb") as F:
+            pickle.dump([stats_grids_traverse_by_passive_force,
+                         ts_traverse_by_passive_force],
+                        F)
 
             
 if __name__ == "__main__":
