@@ -43,18 +43,18 @@ def get_new_transport_simulation(**kwargs):
 
 def mp_do_simulation(param_range, i, j, 
                      equilibration_time_sec,
-                    transport_simulation_generator):
-
+                     tsg, # transport simulation generator
+                     tsg_params, # transport_simulation_generator_params
+                     rng # random number generator
+                     ):
     nskip_statistics= 100
-    my_ts= transport_simulation_generator()
+    my_ts= tsg(**tsg_params)
     cur_params= { param_range['tag_x']: param_range['range_x'][i],
                   param_range['tag_y']: param_range['range_y'][j]}
     my_ts.set_params(**cur_params)
     stats = my_ts.simulate(equilibration_time_sec,
                            nskip_statistics= 100) 
-    np.random.seed()
-    r= np.random.rand()
-#    print(f"r {r}")
+    r= rng.random()
     if (r<0.1):
         print(f"Finished some ten jobs (at i={i} j={j} r={r})")
     return {"i":i, "j":j, "stats":stats}
@@ -82,7 +82,8 @@ def mp_handle_error(error):
 def map_param_grid_parallel(param_range, 
                    equilibration_time_sec= 150.0, 
                    n_processors= 5,
-                   transport_simulation_generator= get_new_transport_simulation
+                            transport_simulation_generator= get_new_transport_simulation,
+                            transport_simulation_generator_params=dict()
                   ):
     '''
     Run in parallel to compute simulation results over a range of parameters
@@ -92,7 +93,10 @@ def map_param_grid_parallel(param_range,
                  for numpy array for corresponding param ranges
     :param equilibration_time_sec: equilibration time per condition
     :param n_processors: number of processors on which to run in parallel
-    
+    :param transport_simulation_generator a picklable (global) function that
+              generates transport_simulation objects
+    :param transport_simulation_generator_params dictionary of parameters for 
+              transport_simulation_generator_params
     :return a dictionary from simulation properties to 2D arrays with the
             their values at the end of simulations for each parameter
             combination
@@ -100,7 +104,7 @@ def map_param_grid_parallel(param_range,
     VERBOSE= True
     nx= len(param_range['range_x'])
     ny= len(param_range['range_y'])
-    ts= transport_simulation_generator() # a sample ts to be returned
+    ts= transport_simulation_generator(**transport_simulation_generator_params) # a sample ts to be returned
     if VERBOSE:
         for param in [param_range['tag_x'], param_range['tag_y']]:
             print("Param {:} default value is {:}".format(param, getattr(ts, param)))
@@ -108,13 +112,16 @@ def map_param_grid_parallel(param_range,
     for nmol_type in ts.nmol.keys(): # TODO: add get_nmols()
         stats_grids[nmol_type]= np.ndarray((ny, nx)) # Row major - y coordinate goes first
     jobs_params= []
+    seeds = np.random.SeedSequence().spawn(nx*ny);
+    rngs = [np.random.default_rng(s) for s in seeds]
     for j in range(ny):
         for i in range(nx):
             jobs_params.append((param_range.copy(),
-                                i,
-                                j,
+                                i, j,
                                 equilibration_time_sec,
-                               transport_simulation_generator))
+                                transport_simulation_generator,
+                                transport_simulation_generator_params,
+                                rngs[j*nx+i]))
     print("njobs={}".format(len(jobs_params)))
     callback_function = \
         lambda mydict: mp_handle_stats(stats_grids, mydict)

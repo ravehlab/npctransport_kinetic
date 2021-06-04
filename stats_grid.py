@@ -133,8 +133,22 @@ def plot_stats_grids(stats_grids, transport_simulation, param_range,
 
 def main_test(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_passive=10, pkl=None):
     print(output, passive_range, npc_traverse_range, k_on_range, nx, ny, n_passive, pkl)
+
+def transport_simulation_generator(passive, Ran_cell_M, c_M, **kwargs):
+    print(f"Ran: {Ran_cell_M:.6f} M")
+    return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
+                                               Ran_cell_M = Ran_cell_M, init_cargo_cytoplasm_M=c_M,
+                                               **kwargs)
+
     
-def main(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_passive=10, c_M=50e-6, pkl=None):
+def main(output,
+         passive_range,
+         npc_traverse_range,
+         k_on_range,
+         nx=20, ny=20,
+         n_passive=10,
+         c_M=50e-6,
+         pkl=None):
     test_ts= get_transport_simulation_by_passive(0.02, False)
     print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
     Ran_cell_M = 80.0e-6
@@ -146,20 +160,20 @@ def main(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_
     print("*** Starting multiprocess run ***")    
     
     for passive in np.logspace(*np.log10(passive_range), n_passive): #0.01,0.09,6):
-            def transport_simulation_generator(**kwargs):
-                print(f"Ran: {Ran_cell_M:.6f} M")
-                return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
-                                                           Ran_cell_M = Ran_cell_M, init_cargo_cytoplasm_M=c_M,
-                                                           **kwargs)
             key= passive
             if key in stats_grids_traverse_by_passive_force:
                 continue
+            tsg_params = {"passive":passive,
+                          "Ran_cell_M":Ran_cell_M,
+                          "c_M": c_M}
             stats_grids_traverse_by_passive_force[key], \
             ts_traverse_by_passive_force[key] = \
-                map_param_grid.map_param_grid_parallel( param_range,
-                                                    equilibration_time_sec= 100.0,
-                                                    n_processors= n_processors,
-                                                    transport_simulation_generator= transport_simulation_generator)
+                map_param_grid.map_param_grid_parallel\
+                ( param_range,
+                  equilibration_time_sec= 100.0,
+                  n_processors= n_processors,
+                  transport_simulation_generator= transport_simulation_generator,
+                  transport_simulation_generator_params= tsg_params)
             print(f"passive rate {passive}")
             plot_stats_grids(stats_grids_traverse_by_passive_force[key],
                         ts_traverse_by_passive_force[key],
@@ -177,7 +191,7 @@ def main(output, passive_range, npc_traverse_range, k_on_range, nx=20, ny=20, n_
     if pkl is not None:
     # Pickle results
         with open(pkl, "wb") as F:
-             pickle.dump([stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force], F)
+            pickle.dump([stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force], F)
             
             
 if __name__ == "__main__":
