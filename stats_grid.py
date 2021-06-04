@@ -58,14 +58,18 @@ def parse_args():
  
 
 
-def get_param_range_traverse_kon(nx, ny, npc_traverse_range=(0,3), k_on_range=(-2,1)):
+def get_param_range_traverse_kon(nx,
+                                 ny,
+                                 npc_traverse_range=(1.0,1000.0),
+                                 k_on_range=(0.01,10.0) 
+):
     param_range= {}
     print(f"nx={nx} ny={ny}")
     param_range['tag_x']= "fraction_complex_NPC_traverse_per_sec"
-    param_range['range_x']= np.logspace(*npc_traverse_range, nx) 
+    param_range['range_x']= np.logspace(*np.log10(npc_traverse_range), nx) 
     param_range['pretty_x']= r"rate NPC traverse [$sec^{-1}$]"
     param_range['tag_y']= "rate_free_to_complex_per_sec"
-    param_range['range_y']= np.logspace(*k_on_range, ny)
+    param_range['range_y']= np.logspace(*np.log10(k_on_range), ny)
     param_range['pretty_y']= r"NTR $k_{on}$ [$sec^{-1}$]"
     return param_range
 def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
@@ -180,7 +184,7 @@ def transport_simulation_generator(passive, Ran_cell_M, c_M, **kwargs):
                                                **kwargs)
 
     
-def main(output,
+def get_stats_on_grid(output,
          passive_range,
          npc_traverse_range,
          k_on_range,
@@ -193,7 +197,9 @@ def main(output,
     test_ts= get_transport_simulation_by_passive(0.02, False)
     print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
     Ran_cell_M = 80.0e-6
-    param_range= get_param_range_traverse_kon(nx, ny, npc_traverse_range, k_on_range)
+    param_range= get_param_range_traverse_kon(nx, ny,
+                                              npc_traverse_range,
+                                              k_on_range)
     print(param_range)
     n_processors= multiprocessing.cpu_count()
     stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
@@ -239,4 +245,4 @@ def main(output,
             
 if __name__ == "__main__":
     args = parse_args()
-    main(**vars(args))
+    get_stats_on_grid(**vars(args))
