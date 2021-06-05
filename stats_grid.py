@@ -41,6 +41,9 @@ def parse_args():
     parser.add_argument("-c", "--cargo-concentration-M", type=float,
                         help="the concentration of cargo in "\
                         "the cell, in Molars", default=50e-6)
+    parser.add_argument("-r", "--Ran-concentration-M", type=float,
+                        help="the concentration of Ran in "\
+                        "the cell, in Molars", default=20e-6)
     parser.add_argument("-pkl", "--pickle-file", type=str, \
                         help="Filename of output pickle file. If supplied, the heatmap will be"\
                              " pickled and saved to this file.")
@@ -192,11 +195,13 @@ def get_stats_on_grid(output,
          ny=20,
          n_passive=10,
          cargo_concentration_M=50e-6,
+         Ran_concentration_M=20e-6,
          pickle_file=None,
-         number_of_processors=1):
+         number_of_processors=1
+
+):
     test_ts= get_transport_simulation_by_passive(0.02, False)
     print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
-    Ran_cell_M = 80.0e-6
     param_range= get_param_range_traverse_kon(nx, ny,
                                               npc_traverse_range,
                                               k_on_range)
@@ -211,7 +216,7 @@ def get_stats_on_grid(output,
             if key in stats_grids_traverse_by_passive_force:
                 continue
             tsg_params = {"passive":passive,
-                          "Ran_cell_M":Ran_cell_M,
+                          "Ran_cell_M":Ran_concentration_M,
                           "c_M": cargo_concentration_M}
             stats_grids_traverse_by_passive_force[key], \
             ts_traverse_by_passive_force[key] = \
