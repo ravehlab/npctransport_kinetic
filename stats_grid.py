@@ -240,11 +240,12 @@ def get_stats_on_grid(output,
             
     print("*** Finished multiprocess run ***")
 
-    if pickle_file is not None:
     # Pickle results
+    if pickle_file is not None:
         with open(pickle_file, "wb") as F:
             pickle.dump([stats_grids_traverse_by_passive_force,
-                         ts_traverse_by_passive_force],
+                         ts_traverse_by_passive_force,
+                         param_range],
                         F)
 
             
