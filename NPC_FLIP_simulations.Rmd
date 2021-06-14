@@ -738,13 +738,13 @@ def my_plot_param_grid(df, # a pivoted 2D dataframe
 
 plt.style.use('./my.mplstyle.txt')
 NLSs = df['rate_free_to_complex_per_sec'].unique()
-ncol = 5
+ncol = 3
 nrow = len(NLSs) // ncol + (len(NLSs) % ncol > 0) * 1
 fig,axes = plt.subplots(nrow, ncol,
                         sharex=True, 
                         sharey=True, 
                         squeeze=False, 
-                        figsize = (19,24))
+                        figsize = (17.0, 4.0*nrows+1.0))
 axes_iter = iter(axes.reshape(-1))
 for NLS in NLSs:
     ax = next(axes_iter)
