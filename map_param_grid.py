@@ -19,9 +19,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import transport_simulation 
+import pandas as pd
 
 # %%
-
+N_A= 6.022e+23 # Avogadro's number 
 
 def get_tau_passive_diffusion(nmol_per_sec_per_M, volume_L):
     ''' 
@@ -136,6 +137,60 @@ def map_param_grid_parallel(param_range,
     return stats_grids, ts
 
 
+def _get_df_for_stats_grids(param_range, passive_rate, stats_grids, ts):
+    '''
+    :param param_range a valid param-range input for 
+       map_param_grid.map_param_grid_parallel()
+    :param passive_rate the rate of passive diffusion in transport 
+       simulations
+    :param stats_grids a dictionary of stats for different molecules
+       by passive rates i.e. output of map_param_grid.map_param_grid_parallel())
+    '''
+    X,Y = np.meshgrid(param_range['range_x'],
+                 param_range['range_y'])
+    df = pd.DataFrame(data = { param_range['tag_x'] : X.flatten(), 
+                               param_range['tag_y'] : Y.flatten() })
+    df['passive_rate'] = passive_rate
+    for Z_column, Z_values in stats_grids.items():
+        df[Z_column] = Z_values.flatten()   
+    # Add various useful columns:
+    df['V_N_L'] = ts.get_v_N_L()
+    df['V_C_L'] = ts.get_v_C_L()
+    df['cargo_N_M'] = \
+      sum([df[f'{s}{l}_N'] for s in ['free','complex'] for l in ['L','U']]) / df['V_N_L'] / N_A
+    df['cargo_C_M'] = \
+      sum([df[f'{s}{l}_C'] for s in ['free','complex'] for l in ['L','U']]) / df['V_C_L'] / N_A
+    df['N2C'] = df['cargo_N_M'] / (df['cargo_C_M'] + 1e-18)
+    for d in ['import', 'export']:
+        df[f'nuclear_{d}_per_sec'] = \
+          sum(df[f'nuclear_{d}{tag}_per_sec'] for tag in ['L','U'])
+    df['import2export'] = df['nuclear_import_per_sec'] / (df['nuclear_export_per_sec'] + 1e-18)
+    
+    return df
+
+def get_df_from_stats_grids_by_passive(param_range, 
+                                       stats_grids_by_passive,
+                                       ts_by_passive):
+    '''
+    Converts stats_grids_by_passive returned by map_param_grid_parallel() etc.
+    to a pandas dataframe with column 'passive rate' for passive rates, and
+    x-range and y-range params fetched from param_range
+    
+    :param param_range a valid param-range input for 
+       map_param_grid.map_param_grid_parallel()
+    :param stats_grids a dictionary of stats for different molecules
+       by passive rates i.e. output of map_param_grid.map_param_grid_parallel())
+    '''
+    dfs = [_get_df_for_stats_grids(param_range, 
+                                  passive,
+                                  stats_grids, 
+                                  ts_by_passive[passive]) \
+           for (passive, stats_grids) in stats_grids_by_passive.items()]
+    df= pd.concat(dfs)
+    return df
+
+
+
 
 ###### VISUALIZATION OF RESULTS ######
 
@@ -171,13 +226,17 @@ def get_N_to_C_ratios(stats_grids, v_N_L, v_C_L):
     ratios= (nNs/v_N_L) / (nCs/v_C_L)
     return ratios
 
+def get_N_to_C_ratios_for_ts(stats_grids, ts):
+    ''' return N/C ratios from stats_grids computed in the previous cell for simulation ts'''
+    return get_N_to_C_ratios(stats_grids, 
+                              v_N_L= ts.get_v_N_L(), 
+                              v_C_L= ts.get_v_C_L())
+
 def plot_NC_ratios(param_range, stats_grids, ts, 
                    vmin= 1.0, vmax= 4.0, 
                    locator= None, 
                   levels= None):
-    NC_ratios= get_N_to_C_ratios(stats_grids, 
-                              v_N_L= ts.get_v_N_L(), 
-                              v_C_L= ts.get_v_C_L())
+    NC_ratios= get_N_to_C_ratios_for_ts(stats_grids, ts)
     print(vmin, vmax)
     plot_param_grid(param_range, 
                     NC_ratios,
