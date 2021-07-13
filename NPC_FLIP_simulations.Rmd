@@ -402,7 +402,7 @@ def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
     ts.rate_free_to_complex_per_sec = 0.01 # SCAN
     ts.fraction_complex_NPC_traverse_per_sec=4000 # SCAN
     ts.set_params(**kwargs) # override defaults
-    self.set_RAN_distribution(Ran_cell_M= Ran_cell_M, # total physiological concentration of Ran # TODO: check in the literature 
+    ts.set_RAN_distribution(Ran_cell_M= Ran_cell_M, # total physiological concentration of Ran # TODO: check in the literature 
                                   parts_GTP_N=1000,
                                   parts_GTP_C=1,
                                   parts_GDP_N=1,
@@ -666,7 +666,7 @@ import numpy as np
 import pandas as pd
 import map_param_grid as mpg
 import importlib
-importlib.reload(map_param_grid)
+importlib.reload(mpg)
 
 with open("run03/run03.pkl","rb") as F:
     stats_grids_by_passive, ts_by_passive = pickle.load(F)
@@ -695,8 +695,53 @@ param_range = {'tag_x': 'fraction_complex_NPC_traverse_per_sec',
   'pretty_y': 'NTR $k_{on}$ [$sec^{-1}$]'}       
 
 print([f'{state}{label}_N' for state in ['free','complex'] for label in ['L','U']])
+print(stats_grids_by_passive.keys())
 
+```
 
+```{python}
+if False:
+    # TIME CONSUMING #
+    Ran_cell_M = 80.0e-6
+    param_range= get_param_range_traverse_kon(nx= 7, ny= 7)
+    print(param_range)
+    n_processors= multiprocessing.cpu_count()
+    CACHE = True
+    if not CACHE:
+        stats_grids_traverse_by_passive_force= {} # 2D maps of statistics for different passive diffusion params
+        ts_traverse_by_passive_force= {} #  transport simulaiton object used for each
+    print("*** Starting multiprocess run ***")    
+    for passive in np.logspace(np.log10(0.01), np.log10(0.1), 10): #0.01,0.09,6):
+        for is_force_volume in [False]: # [False, True]
+            def transport_simulation_generator(**kwargs):
+                print(f"Ran: {Ran_cell_M:.6f} M")
+                return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
+                                                           is_force_volume= is_force_volume,
+                                                           Ran_cell_M = Ran_cell_M,
+                                                           **kwargs)
+            key= (passive, is_force_volume)
+            if key in stats_grids_traverse_by_passive_force:
+                continue
+            stats_grids_traverse_by_passive_force[key], \
+            ts_traverse_by_passive_force[key] = \
+                map_param_grid.map_param_grid_parallel( param_range,
+                                                    equilibration_time_sec= 100.0,
+                                                    n_processors= n_processors//2,
+                                                    transport_simulation_generator= transport_simulation_generator)
+            print(f"passive rate {passive} is old force_volume {is_force_volume}")
+            plot_stats_grids(stats_grids_traverse_by_passive_force[key],
+                        ts_traverse_by_passive_force[key],
+                        vmax_import_export= 10.0,
+                        NC_max=30.0,
+                        NC_min=1.0)
+    print("*** Finished multiprocess run ***")
+    # Pickle results
+    import pickle
+    with open(f"./Results/Heatmaps_Ran{(1E6*Ran_cell_M):.0f}uM.pkl","wb") as F:
+         pickle.dump(
+            [stats_grids_traverse_by_passive_force, ts_traverse_by_passive_force],
+                     F)
+#     !ls Results
 ```
 
 ```{python}
@@ -710,17 +755,44 @@ display(df.head())
 ```
 
 ```{python}
+
+```
+
+```{python}
 ###### VISUALIZATION OF RESULTS ######
 
-param_range2 = param_range
+
+def get_passive_nuclear_molar_rate_per_sec(MW, is_force): # TODO: verify it corresponds to multiplyng by concentration rather than nmolecules
+    #TODO: generalize this - either from the literature or regression
+    base_rates={ 27:0.0805618, 
+                41:0.06022355, 
+                54:0.03301662, 
+                67:0.0287649 }
+    rate= base_rates[MW]
+    if is_force:
+        rate += get_force_effect_on_diffusion(MW)
+    return rate
+
+def get_force_effect_on_diffusion(MW):
+    """
+    The effect of force on passive diffusion as measured by experiment
+    """
+    effects = {27:0.08214946, 
+                41:0.03027974, 
+                54:0.01, # 54:0.00026308, 
+                67:0.01 } #67:0.00272423 }
+    return effects[MW]
+
+MWs = [27,41,54,67]
 def my_plot_param_grid(df, # a pivoted 2D dataframe
                        pretty_x = None,
                        pretty_y = None,
                        pretty_z = None,
+                       is_colorbar = False,
                        **contourf_kwargs):
     X, Y = np.meshgrid(df.columns, df.index)
     ax = plt.gca()
-    c = plt.contourf( X, Y, df.to_numpy(), 
+    ctr = plt.contourf( X, Y, df.to_numpy(), 
                 **contourf_kwargs)
     ax.set_xscale('log')
     ax.set_yscale('log')
@@ -730,21 +802,26 @@ def my_plot_param_grid(df, # a pivoted 2D dataframe
     ylim= ax.get_ylim()
     if xlim[1]>xlim[0]:
         ax.set_xlim(xlim[1], xlim[0])
-#    cb = plt.colorbar(label= pretty_z)
-#    ticks = cb.get_ticks()
-#    cb.set_ticks(ticks)
-#    cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
-    return c
+    if is_colorbar:
+        cb = plt.colorbar(label= pretty_z)
+        ticks = cb.get_ticks()
+        cb.set_ticks(ticks)
+        cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+    return ctr
+```
+
+```{python}
+
 
 plt.style.use('./my.mplstyle.txt')
-NLSs = df['rate_free_to_complex_per_sec'].unique()
+NLSs = df['passive_rate'].unique()[:]
 ncol = 3
 nrow = len(NLSs) // ncol + (len(NLSs) % ncol > 0) * 1
 fig,axes = plt.subplots(nrow, ncol,
                         sharex=True, 
                         sharey=True, 
                         squeeze=False, 
-                        figsize = (17.0, 4.0*nrows+1.0))
+                        figsize = (17.0, 4.0*nrow+1.0))
 axes_iter = iter(axes.reshape(-1))
 for NLS in NLSs:
     ax = next(axes_iter)
@@ -753,7 +830,7 @@ for NLS in NLSs:
                                columns='fraction_complex_NPC_traverse_per_sec', 
                                values='N2C')
     NC_min = 1.0
-    NC_max = 30.0
+    NC_max = 10.0
     plt.sca(ax)
     ct = my_plot_param_grid(N2C,
                        pretty_x = r'rate NPC traverse [$sec^{-1}$]',
@@ -764,6 +841,18 @@ for NLS in NLSs:
                       levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
                                   locator= mpl.ticker.LogLocator(base=2.0),
                       extend = 'both')
+    colors = ['r', 'g', 'b', 'k']
+    ylim= ax.get_ylim()
+    for MW, color in zip(MWs, colors):
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        y1 = min(y1, ylim[1]*0.99)
+        x0 = N2C.columns[0]
+        x1 = N2C.columns[-1]
+        ax.plot((x0, x1), (y0, y0), color + "-", label = str(MW))     
+        plt.annotate(str(MW), (x0,y0), color=color)
+        ax.plot((x0, x1), (y1, y1), color + "-", linewidth=3.0)
+    ax.set_ylim(ylim)
     plt.title(f"NLS $k_{{on}}${NLS:.4f} $sec^{{-1}}$")
 fig.subplots_adjust(right=0.8)
 cbar_ax = fig.add_axes([0.85, 0.3, 0.03, 0.4])
@@ -771,12 +860,419 @@ cb = fig.colorbar(ct, cax=cbar_ax)
 ticks = cb.get_ticks()
 cb.set_ticks(ticks)
 cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
-
 plt.show()
 ```
 
 ```{python}
 
+
+plt.style.use('./my.mplstyle.txt')
+NLSs = df['rate_free_to_complex_per_sec'].unique()[:]
+ncol = 3
+nrow = len(NLSs) // ncol + (len(NLSs) % ncol > 0) * 1
+fig,axes = plt.subplots(nrow, ncol,
+                        sharex=True, 
+                        sharey=True, 
+                        squeeze=False, 
+                        figsize = (17.0, 4.0*nrow+1.0))
+axes_iter = iter(axes.reshape(-1))
+for NLS in NLSs:
+    ax = next(axes_iter)
+    is_NLS = np.isclose(df['rate_free_to_complex_per_sec'], NLS)
+    N2C = df[is_NLS].pivot(index='passive_rate', 
+                               columns='fraction_complex_NPC_traverse_per_sec', 
+                               values='N2C')
+    NC_min = 1.0
+    NC_max = 10.0
+    plt.sca(ax)
+    ct = my_plot_param_grid(N2C,
+                       pretty_x = r'rate NPC traverse [$sec^{-1}$]',
+                       pretty_y = r'passive rate [$sec^{-1}$]',
+                       pretty_z = r'N:C',
+                      vmin= NC_min,
+                      vmax= NC_max,
+                      levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                                  locator= mpl.ticker.LogLocator(base=2.0),
+                      extend = 'both')
+    colors = ['r', 'g', 'b', 'k']
+    ylim= ax.get_ylim()
+    for MW, color in zip(MWs, colors):
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        y1 = min(y1, ylim[1]*0.99)
+        x0 = N2C.columns[0]
+        x1 = N2C.columns[-1]
+        ax.plot((x0, x1), (y0, y0), color + "-", label = str(MW))     
+        plt.annotate(str(MW), (x0,y0), color=color)
+        ax.plot((x0, x1), (y1, y1), color + "-", linewidth=3.0)
+    ax.set_ylim(ylim)
+    plt.title(f"NLS $k_{{on}}${NLS:.4f} $sec^{{-1}}$")
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.03, 0.4])
+cb = fig.colorbar(ct, cax=cbar_ax)
+ticks = cb.get_ticks()
+cb.set_ticks(ticks)
+cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+plt.show()
+```
+
+## absolute dZ/dY (normalized by Z)
+
+```{python}
+plt.style.use('./my.mplstyle.txt')
+NLSs = df['rate_free_to_complex_per_sec'].unique()[:]
+ncol = 3
+nrow = len(NLSs) // ncol + (len(NLSs) % ncol > 0) * 1
+fig,axes = plt.subplots(nrow, ncol,
+                        sharex=True, 
+                        sharey=True, 
+                        squeeze=False, 
+                        figsize = (17.0, 4.0*nrow+1.0))
+axes_iter = iter(axes.reshape(-1))
+is_shared_colorbar = True
+for NLS in NLSs:
+    ax = next(axes_iter)
+    is_NLS = np.isclose(df['rate_free_to_complex_per_sec'], NLS)
+    N2C = df[is_NLS].pivot(index='passive_rate', 
+                               columns='fraction_complex_NPC_traverse_per_sec', 
+                               values='N2C')
+    N2C_diff = pd.DataFrame(np.abs(np.diff(N2C.values, axis=0, append=0)/N2C.values),
+                            index = N2C.index,
+                            columns = N2C.columns)
+    NC_min = 0.01
+    NC_max = 0.4
+#    levels= np.logspace(-np.log2(NC_max),-np.log2(NC_min),21, base=2.0),
+ #                                 locator= mpl.ticker.LogLocator(base=2.0),
+    plt.sca(ax)
+    ct = my_plot_param_grid(N2C_diff,
+                       pretty_x = r'rate NPC traverse [$sec^{-1}$]',
+                       pretty_y = r'passive rate [$sec^{-1}$]',                            
+                       pretty_z = r'N:C',
+                            is_colorbar = not is_shared_colorbar,
+                       vmin= NC_min,
+                       vmax= NC_max,
+                      levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                                  locator= mpl.ticker.LogLocator(base=2.0),
+                      extend = 'both')
+    colors = ['r', 'g', 'b', 'k']
+    ylim= ax.get_ylim()
+    for MW, color in zip(MWs, colors):
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        y1 = min(y1, ylim[1]*0.99)
+        x0 = N2C.columns[0]
+        x1 = N2C.columns[-1]
+        ax.plot((x0, x1), (y0, y0), color + "-", label = str(MW))     
+        plt.annotate(str(MW), (x0,y0), color=color)
+        ax.plot((x0, x1), (y1, y1), color + "-", linewidth=3.0)
+    ax.set_ylim(ylim)
+    plt.title(f"NLS $k_{{on}}${NLS:.4f} $sec^{{-1}}$")
+if is_shared_colorbar:
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.3, 0.03, 0.4])
+    cb = fig.colorbar(ct, cax=cbar_ax)
+    ticks = cb.get_ticks()
+    cb.set_ticks(ticks)
+    cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+plt.show()
+```
+
+## absolute dZ/dX (normalized by Z)
+
+```{python}
+plt.style.use('./my.mplstyle.txt')
+NLSs = df['rate_free_to_complex_per_sec'].unique()[:]
+ncol = 3
+nrow = len(NLSs) // ncol + (len(NLSs) % ncol > 0) * 1
+fig,axes = plt.subplots(nrow, ncol,
+                        sharex=True, 
+                        sharey=True, 
+                        squeeze=False, 
+                        figsize = (17.0, 4.0*nrow+1.0))
+axes_iter = iter(axes.reshape(-1))
+is_shared_colorbar = False
+for NLS in NLSs:
+    ax = next(axes_iter)
+    is_NLS = np.isclose(df['rate_free_to_complex_per_sec'], NLS)
+    N2C = df[is_NLS].pivot(index='passive_rate', 
+                               columns='fraction_complex_NPC_traverse_per_sec', 
+                               values='N2C')
+    N2C_diff = pd.DataFrame(np.abs(np.diff(N2C.values, axis=1, append=0)) / N2C.values,
+                            index = N2C.index,
+                            columns = N2C.columns)
+    NC_min = 0.01
+    NC_max = 0.4
+#    levels= np.logspace(-np.log2(NC_max),-np.log2(NC_min),21, base=2.0),
+ #                                 locator= mpl.ticker.LogLocator(base=2.0),
+    plt.sca(ax)
+    ct = my_plot_param_grid(N2C_diff,
+                       pretty_x = r'rate NPC traverse [$sec^{-1}$]',
+                       pretty_y = r'passive rate [$sec^{-1}$]',                            
+                       pretty_z = r'N:C',
+                            is_colorbar = not is_shared_colorbar,
+                       vmin= NC_min,
+                       vmax= NC_max,
+                      levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                                  locator= mpl.ticker.LogLocator(base=2.0),
+                      extend = 'both')
+    colors = ['r', 'g', 'b', 'k']
+    ylim= ax.get_ylim()
+    for MW, color in zip(MWs, colors):
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        y1 = min(y1, ylim[1]*0.99)
+        x0 = N2C.columns[0]
+        x1 = N2C.columns[-1]
+        ax.plot((x0, x1), (y0, y0), color + "-", label = str(MW))     
+        plt.annotate(str(MW), (x0,y0), color=color)
+        ax.plot((x0, x1), (y1, y1), color + "-", linewidth=3.0)
+    ax.set_ylim(ylim)
+    plt.title(f"NLS $k_{{on}}${NLS:.4f} $sec^{{-1}}$")
+if is_shared_colorbar:
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.3, 0.03, 0.4])
+    cb = fig.colorbar(ct, cax=cbar_ax)
+    ticks = cb.get_ticks()
+    cb.set_ticks(ticks)
+    cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+plt.show()
+```
+
+# Get precise numbers for figures (Jul 8, 2021)
+
+
+## no transform
+
+```{python}
+from matplotlib import ticker
+VERBOSE = False
+plt.style.use('./my.mplstyle.txt')
+NLSs =  df['rate_free_to_complex_per_sec'].unique()
+if VERBOSE or True:
+    print("NLSs [s^-1]: ", NLSs)
+NLSs_subset = np.array([1.00000000e-03, 1.30494682e-03, 1.70288620e-03, 2.22217592e-03,
+ 2.89982140e-03, 3.78411271e-03, 4.93806584e-03, 6.44391330e-03,
+ 8.40896415e-03, 1.09732510e-02, 1.43195090e-02, 1.86861977e-02,
+ 2.43844942e-02, 3.18204681e-02, 4.15240186e-02, 5.41866359e-02,
+ 7.07106781e-02, 9.22736744e-02, 1.20412238e-01, 1.57131566e-01,
+ 2.05048338e-01, 2.67577176e-01, 3.49173984e-01, 4.55653479e-01,
+ 5.94603558e-01, 7.75926020e-01, 1.01254219e+00, 1.32131371e+00,
+ 1.72424412e+00 ])
+N2C_by_NLS_yes = []
+N2C_by_NLS_no = []
+Mechano_by_NLS = []
+for NLS in NLSs_subset:
+    N2Cs_no = []
+    N2Cs_yes = []
+    Mechanos = []
+    iNLS = np.argsort(np.abs(NLSs-NLS))[0]
+    NLS_match = NLSs[iNLS]
+    print(f"\n\n\n----\nNLS match {NLS_match*1e3} ms^-1")
+    is_NLS = df['rate_free_to_complex_per_sec'] == NLS_match
+    df_N2C = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='N2C')
+    x0 = 15.0
+    x1 = 150.0
+    ix0 = np.argsort(np.abs(df_N2C.columns - x0))[0]
+    ix1 = np.argsort(np.abs(df_N2C.columns - x1))[0]
+    for MW in MWs:
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        iy0 = np.argsort(np.abs(df_N2C.index - y0))[0]
+        iy1 = np.argsort(np.abs(df_N2C.index - y1))[0]
+        if(MW > 50):
+            iy1 = iy0
+        no = df_N2C.iloc[iy0, ix0]
+        yes = df_N2C.iloc[iy1, ix1]
+        mechano = yes / no
+        if VERBOSE:
+            print("------")
+            print(MW, y0, y1)
+            print(f"Mechanosensitivity {mechano:.1f}")
+            display(df_N2C.iloc[[iy0,iy1],[ix0,ix1]])
+        N2Cs_no.append(no)
+        N2Cs_yes.append(yes)
+        Mechanos.append(mechano)
+        if MW==41:
+            N2C_by_NLS_no.append(no)
+            N2C_by_NLS_yes.append(yes)
+            Mechano_by_NLS.append(mechano)
+    fig, ax = plt.subplots(2,1, figsize=(3.5,6), sharex= True)
+    ax[0].plot(np.array(MWs)-1, N2Cs_no, 'bo', label = 'soft', markersize=4)
+    ax[0].plot(np.array(MWs)+1, N2Cs_yes, 'ro', label = 'stiff', markersize=4)
+    ax[0].set_ylabel("N:C")
+    ax[0].legend(frameon=True)
+    ax[1].plot(MWs, Mechanos, 'ko')
+    ax[1].set_xlabel("MW [kDa]")
+    ax[1].set_ylabel("mechanosensitivity")
+    ax[1].set_ylim([0.5,3.0])
+    ax[1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    ax[0].set_xticks(MWs)
+    plt.show()
+    print("MWs", MWs)
+    print("N2C soft", N2Cs_no)
+    print("N2C stiff", N2Cs_yes)
+    print("mechano:", Mechanos)
+    print()
+    
+for xmax in [None, 400.0]:
+    fig, ax = plt.subplots(2,1, figsize=(3.5,6), sharex= True)
+    ax[0].plot(NLSs_subset*1e3-1, N2C_by_NLS_no, 'bo', label = 'soft', markersize=4)
+    ax[0].plot(NLSs_subset*1e3+1, N2C_by_NLS_yes, 'ro', label = 'stiff', markersize=4)
+    ax[0].set_ylabel("N:C")
+    ax[0].legend(frameon=True)
+    ax[1].plot(NLSs_subset*1e3, Mechano_by_NLS, 'ko')
+    ax[1].set_xlabel(r"NLS strength [$ms^1$]")
+    ax[1].set_ylabel("mechanosensitivity")
+    ax[1].set_ylim([0.5,3.0])
+    ax[1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    ax[0].set_xlim(xmin=1.0, xmax=xmax)
+    ax[0].set_xscale('log')
+    plt.show()
+    print("NLSs", NLSs_subset)
+    print("N2C soft", N2C_by_NLS_no)
+    print("N2C stiff", N2C_by_NLS_yes)
+    print("mechano:", Mechano_by_NLS)
+    print()
+
+```
+
+## import/export
+
+```{python}
+df.head()
+```
+
+```{python}
+from matplotlib import ticker
+import copy
+VERBOSE = False
+PLOT_EACH = False
+plt.style.use('./my.mplstyle.txt')
+NLSs =  df['rate_free_to_complex_per_sec'].unique()
+if VERBOSE or True:
+    print("NLSs [s^-1]: ", NLSs)
+NLSs_subset = np.array([1.00000000e-03, 1.30494682e-03, 1.70288620e-03, 2.22217592e-03,
+ 2.89982140e-03, 3.78411271e-03, 4.93806584e-03, 6.44391330e-03,
+ 8.40896415e-03, 1.09732510e-02, 1.43195090e-02, 1.86861977e-02,
+ 2.43844942e-02, 3.18204681e-02, 4.15240186e-02, 5.41866359e-02,
+ 7.07106781e-02, 9.22736744e-02, 1.20412238e-01, 1.57131566e-01,
+ 2.05048338e-01, 2.67577176e-01, 3.49173984e-01, 4.55653479e-01,
+ 5.94603558e-01, 7.75926020e-01, 1.01254219e+00, 1.32131371e+00,
+ 1.72424412e+00 ])
+empty_stats = {'import':[],
+            'export':[],
+           'i2e':[]}
+Yes_by_NLS = copy.deepcopy(empty_stats)
+No_by_NLS = copy.deepcopy(empty_stats)
+Mechanos_by_NLS = copy.deepcopy(empty_stats)
+for NLS in NLSs_subset:
+    No = copy.deepcopy(empty_stats)
+    Yes = copy.deepcopy(empty_stats)
+    Mechanos = copy.deepcopy(empty_stats)
+    iNLS = np.argsort(np.abs(NLSs-NLS))[0]
+    NLS_match = NLSs[iNLS]
+    print(f"\n\n\n----\nNLS match {NLS_match*1e3} ms^-1")
+    is_NLS = df['rate_free_to_complex_per_sec'] == NLS_match
+    df_import = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='nuclear_import_per_sec')
+    df_export = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='nuclear_export_per_sec')    
+    x0 = 15.0
+    x1 = 150.0
+    ix0 = np.argsort(np.abs(df_N2C.columns - x0))[0]
+    ix1 = np.argsort(np.abs(df_N2C.columns - x1))[0]
+    for MW in MWs:
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        iy0 = np.argsort(np.abs(df_N2C.index - y0))[0]
+        iy1 = np.argsort(np.abs(df_N2C.index - y1))[0]
+        if(MW > 50):
+            iy1 = iy0
+        for Stats, ix, iy in zip([No,Yes], [ix0, ix1], [iy0, iy1]):
+            Stats['import'].append( df_import.iloc[iy, ix] )
+            Stats['export'].append( df_export.iloc[iy, ix] )
+            Stats['i2e'].append( Stats['import'][-1] / Stats['export'][-1] )
+        for category in empty_stats.keys():
+            Mechanos[category].append(Yes[category][-1] / No[category][-1])
+        if MW==41:
+            for category in empty_stats.keys():
+                No_by_NLS[category].append(No[category][-1])
+                Yes_by_NLS[category].append(Yes[category][-1])
+                Mechanos_by_NLS[category].append(Mechanos[category][-1])
+    if PLOT_EACH:
+        fig, ax = plt.subplots(4,1, figsize=(3.5,9), sharex= True)
+        for i,category in enumerate(['import','export','i2e']):
+            ax[i].plot(np.array(MWs)-1, No[category], 'bo', label = 'soft', markersize=4)
+            ax[i].plot(np.array(MWs)+1, Yes[category], 'ro', label = 'stiff', markersize=4)
+            ax[i].set_ylabel(category if category!='i2e' else 'import:export')
+            ax[i].legend(frameon=True)
+            ax[i].set_xticks(MWs)
+            if category in ['import', 'export']:
+                ax[i].set_yscale('log')  
+            ax[i].set_ylim(ymax=1.1*max(max(Yes[category]),max(No[category])))
+        ax[-1].plot(MWs, Mechanos[category], 'ko')
+        ax[-1].set_xlabel("MW [kDa]")
+        ax[-1].set_ylabel("mechanosensitivity")
+        ax[-1].set_ylim([0.5,3.0])
+        ax[-1].set_yscale('log')
+        positions = [0.5, 1.0, 2.0, 4.0]
+        ax[-1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+        ax[-1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+        ax[-1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+        ax[-1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+        plt.show()
+        print("MWs", MWs)
+        print("Soft", No)
+        print("Stiff", Yes)
+        print("mechano:", Mechanos)
+        print()
+    
+    
+      
+for xmax in [None, 400.0]:
+    fig, ax = plt.subplots(4,1, figsize=(3.5,9), sharex= True)
+    for i,category in enumerate(['import','export','i2e']):
+        ax[i].plot(NLSs_subset*1e3-1, No_by_NLS[category], 'bo', label = 'soft', markersize=4)
+        ax[i].plot(NLSs_subset*1e3+1, Yes_by_NLS[category], 'ro', label = 'stiff', markersize=4)
+        ax[i].set_ylabel(category if category!='i2e' else 'import:export')
+        ax[i].legend(frameon=True)
+        ax[i].set_xlim(xmin=1.0, xmax=xmax)
+        ax[i].set_xscale('log')
+        if category in ['import', 'export']:
+            ax[i].set_yscale('log')
+            ax[i].set_ylim(ymax=1.1*max(max(Yes[category]),max(No[category])))
+    ax[-1].plot(NLSs_subset*1e3, Mechanos_by_NLS[category], 'ko')
+    ax[-1].set_xlabel(r"NLS strength [$ms^1$]")
+    ax[-1].set_ylabel("mechanosensitivity")
+    ax[-1].set_ylim([0.5,3.0])
+    ax[-1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[-1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[-1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[-1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[-1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    plt.show()
+    print("NLSs", NLSs_subset)
+    print("Soft", No_by_NLS)
+    print("Stiff", Yes_by_NLS)
+    print("Mechano:", Mechano_by_NLS)
+    print()
+
+
 ```
 
 ```{python}
@@ -788,7 +1284,357 @@ plt.show()
 ```
 
 ```{python}
-import map_param_gridaram_grid
+
+```
+
+```{python}
+
+```
+
+## transform
+
+```{python}
+v_N_L=627e-15
+v_C_L=2194e-15  
+N2C_vol = v_N_L / v_C_L
+def transform_N2C_to_N_relative(N2C, N2C_vol = N2C_vol):
+    N_relative = (N2C * N2C_vol) / (1 + N2C * N2C_vol)
+    return N_relative
+
+
+from matplotlib import ticker
+VERBOSE = False
+plt.style.use('./my.mplstyle.txt')
+NLSs =  df['rate_free_to_complex_per_sec'].unique()
+if VERBOSE or True:
+    print("NLSs [s^-1]: ", NLSs)
+NLSs_subset = np.array([3.18204681e-02, 4.15240186e-02, 5.41866359e-02,
+ 7.07106781e-02, 9.22736744e-02, 1.20412238e-01, 1.57131566e-01,
+ 2.05048338e-01, 2.67577176e-01, 3.49173984e-01, 4.55653479e-01,
+ 5.94603558e-01 ])
+Nsat_by_NLS_yes = []
+Nsat_by_NLS_no = []
+Mechano_by_NLS = []
+for NLS in NLSs_subset:
+    Nsat_no = []
+    Nsat_yes = []
+    Mechanos = []
+    iNLS = np.argsort(np.abs(NLSs-NLS))[0]
+    NLS_match = NLSs[iNLS]
+    print(f"\n\n\n----\nNLS match {NLS_match*1e3} ms^-1")
+    is_NLS = df['rate_free_to_complex_per_sec'] == NLS_match
+    df_N2C = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='N2C')
+    x0 = 15.0
+    x1 = 150.0
+    ix0 = np.argsort(np.abs(df_N2C.columns - x0))[0]
+    ix1 = np.argsort(np.abs(df_N2C.columns - x1))[0]
+    for MW in MWs:
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        iy0 = np.argsort(np.abs(df_N2C.index - y0))[0]
+        iy1 = np.argsort(np.abs(df_N2C.index - y1))[0]
+        if(MW > 50):
+            iy1 = iy0
+        no = df_N2C.iloc[iy0, ix0]
+        yes = df_N2C.iloc[iy1, ix1]
+        mechano = yes / no
+        if VERBOSE:
+            print("------")
+            print(MW, y0, y1)
+            print(f"Mechanosensitivity {mechano:.1f}")
+            display(df_N2C.iloc[[iy0,iy1],[ix0,ix1]])
+        Nsat_no.append(transform_N2C_to_N_relative(no, N2C_vol))
+        Nsat_yes.append(transform_N2C_to_N_relative(yes, N2C_vol))
+        Mechanos.append(mechano)
+        if MW==41:
+            Nsat_by_NLS_no.append(transform_N2C_to_N_relative(no, N2C_vol))
+            Nsat_by_NLS_yes.append(transform_N2C_to_N_relative(yes, N2C_vol))
+            Mechano_by_NLS.append(mechano)
+    fig, ax = plt.subplots(2,1, figsize=(3.5,6), sharex= True)
+    ax[0].plot(np.array(MWs)-1, Nsat_no, 
+               'bo', label = 'soft', markersize=4)
+    ax[0].plot(np.array(MWs)+1, Nsat_yes, 
+               'ro', label = 'stiff', markersize=4)
+    ax[0].set_xticks(MWs)
+    ax[0].set_ylabel("N saturation")
+    ax[0].legend(frameon=True)
+    ax[0].set_ylim(0.1,1)
+    ax[0].set_yscale('log')
+    ax[1].plot(MWs, Mechanos, 'ko')
+    ax[1].set_xlabel("MW [kDa]")
+    ax[1].set_ylabel("mechanosensitivity")
+    ax[1].set_ylim([0.5,3.0])
+    ax[1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    plt.show()
+    print("MWs", MWs)
+    print("N sat. soft", Nsat_no)
+    print("N sat. stiff", Nsat_yes)
+    print("mechano:", Mechanos)
+    print()
+    
+fig, ax = plt.subplots(2,1, figsize=(3.5,6), sharex= True)
+ax[0].plot(NLSs_subset*1e3-1, Nsat_by_NLS_no, 'bo', label = 'soft', markersize=4)
+ax[0].plot(NLSs_subset*1e3+1, Nsat_by_NLS_yes, 'ro', label = 'stiff', markersize=4)
+ax[0].set_ylabel("N saturation")
+ax[0].set_ylim(0.1,1)
+ax[0].set_yscale('log')
+ax[0].legend(frameon=True)
+ax[1].plot(NLSs_subset*1e3, Mechano_by_NLS, 'ko')
+ax[1].set_xlabel(r"NLS strength [$ms^1$]")
+ax[1].set_ylabel("mechanosensitivity")
+ax[1].set_ylim([0.5,3.0])
+ax[1].set_yscale('log')
+positions = [0.5, 1.0, 2.0, 4.0]
+ax[1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+ax[1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+ax[1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+ax[1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+plt.show()
+print("NLSs", NLSs_subset)
+print("Nsat soft", Nsat_by_NLS_no)
+print("Nsat stiff", Nsat_by_NLS_yes)
+print("mechano:", Mechano_by_NLS)
+print()
+
+```
+
+  
+## Normalized dX, dY and Z (transformed or not)
+
+
+```{python}
+def plot_dX_dY_Z(df, is_transform = False, N2C_vol = 0.333):
+    NLSs = df['rate_free_to_complex_per_sec'].unique()[8:24]
+    nrow = len(NLSs) 
+    ncol = 3 if is_transform else 4
+    fig,axes = plt.subplots(nrow, ncol,
+                            sharex=True, 
+                            sharey=False, 
+                            squeeze=False, 
+                            figsize = (4.5*ncol + 1.0, 3.2*nrow+1.0))
+    if is_transform:
+        zlabel_by_column = {0: r"dN / dX",
+                            1: r"dN / dY",
+                            2: r"N saturation",
+                           3: r"N saturation"}
+    else:
+        zlabel_by_column = {0: r"dNC / dX",
+                            1: r"dNC / dY",
+                            2: r"N:C ratio",
+                           3: r"N:C ratio"}
+        
+    for axes, NLS in zip(axes, NLSs):
+        is_NLS = np.isclose(df['rate_free_to_complex_per_sec'], NLS)
+        N2C = df[is_NLS].pivot(index='passive_rate', 
+                                   columns='fraction_complex_NPC_traverse_per_sec', 
+                                   values='N2C')
+        N_relative = (N2C * N2C_vol) / (1 + N2C * N2C_vol)
+        for column, ax in enumerate(axes):
+            if column in [0,1]:
+
+                if is_transform:
+                    is_linear = True
+                    Z_diff = np.diff(N_relative.values, axis=(1-column), append=0)
+                    Z = pd.DataFrame(Z_diff,
+                                     index = N_relative.index,
+                                     columns = N_relative.columns)
+                    NC_min = 0.0
+                    NC_max = 0.05 if column==0 else 0.01
+                else:
+                    is_linear = False
+                    Z_diff = np.diff(N2C.values, axis=(1-column), append=0)  
+                    Z = pd.DataFrame(np.abs(Z_diff)/N2C.values,
+                                     index = N2C.index,
+                                     columns = N2C.columns)
+                    NC_min = 0.01
+                    NC_max = 0.4            
+            else:
+                is_linear = False
+                if is_transform:
+                    Z = N_relative
+                    NC_min = 0.05 
+                    NC_max = 1.0 
+                    #levels= np.linspace(NC_min, NC_max, 11)
+                    #locator= None
+                else:
+                    Z = N2C
+                    NC_min = 1.0
+                    NC_max = 10.0 if column==2 else 50.0                
+            if is_linear:
+                levels= np.logspace(NC_min, NC_max, 11)
+                locator = None
+            else:
+                levels= np.logspace(np.log2(NC_min),np.log2(NC_max),11, base=2.0)
+                locator= mpl.ticker.LogLocator(base=2.0)
+            plt.sca(ax)
+            ct = my_plot_param_grid(Z,
+                               pretty_x = r'rate NPC traverse [$sec^{-1}$]' ,
+                               pretty_y = r'passive rate [$sec^{-1}$]' if column==0 else None,                            
+                               pretty_z = zlabel_by_column[column],
+                                    is_colorbar = not is_shared_colorbar,
+                               vmin= NC_min,
+                               vmax= NC_max,
+                              levels= levels,
+                                    locator = locator,
+                              extend = 'both')
+            colors = ['r', 'g', 'b', 'k']
+            ylim= ax.get_ylim()
+            for MW, color in zip(MWs, colors):
+                y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+                y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+                y1 = min(y1, ylim[1]*0.99)
+                x0 = N2C.columns[0]
+                x1 = N2C.columns[-1]
+                ax.plot((x0, x1), (y0, y0), color + "-", label = str(MW))     
+                plt.annotate(str(MW), (x0,y0), color=color)
+                ax.plot((x0, x1), (y1, y1), color + "-", linewidth=3.0)
+            ax.set_ylim(ylim)
+            plt.title(f"NLS $k_{{on}}$={NLS*1000:.1f} $ms^{{-1}}$")
+    plt.tight_layout()
+    plt.show()
+
+plt.style.use('./my.mplstyle.txt')
+v_N_L=627e-15
+v_C_L=2194e-15  
+N2C_vol = v_N_L / v_C_L
+print(f"{N2C_vol:.2f}")
+for is_transform in [False, True]:
+        print(f"is_transform {is_transform}")
+        plot_dX_dY_Z(df, 
+                     is_transform = is_transform, 
+                     N2C_vol = N2C_vol)
+
+```
+
+```{python}
+
+
+plt.style.use('./my.mplstyle.txt')
+traverses = df['fraction_complex_NPC_traverse_per_sec'].unique()[:]
+ncol = 3
+nrow = len(traverses) // ncol + (len(traverses) % ncol > 0) * 1
+fig,axes = plt.subplots(nrow, ncol,
+                        sharex=True, 
+                        sharey=True, 
+                        squeeze=False, 
+                        figsize = (17.0, 4.0*nrow+1.0))
+axes_iter = iter(axes.reshape(-1))
+for traverse in traverses:
+    ax = next(axes_iter)
+    is_traverse = np.isclose(df['fraction_complex_NPC_traverse_per_sec'], traverse)
+    N2C = df[is_traverse].pivot(index='rate_free_to_complex_per_sec', 
+                               columns='passive_rate', 
+                               values='N2C')
+    NC_min = 1.0
+    NC_max = 10.0
+    plt.sca(ax)
+    ct = my_plot_param_grid(N2C,
+                       pretty_x = r'passive rate [$sec^{-1}$]',
+                       pretty_y = r'NLS $k_{on}$ [$sec^{-1}$]',
+                       pretty_z = r'N:C',
+                      vmin= NC_min,
+                      vmax= NC_max,
+                      levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                                  locator= mpl.ticker.LogLocator(base=2.0),
+                      extend = 'both')
+    colors = ['r', 'g', 'b', 'k']
+    xlim= ax.get_xlim()
+    for MW, color in zip(MWs, colors):
+        x0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        x1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        x1 = min(x1, xlim[1]*0.99)
+        y0 = N2C.index[0]
+        y1 = N2C.index[-1]
+        ax.plot((x0, x0), (y0, y1), color + "-", label = str(MW))     
+        plt.annotate(str(MW), (x0,y0), color=color)
+        ax.plot((x1, x1), (y0, y1), color + "-", linewidth=3.0)
+    ax.set_xlim(xlim)
+    plt.title(f"rate NPC traverse ${traverse:.1f} $sec^{{-1}}$")
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.85, 0.3, 0.03, 0.4])
+cb = fig.colorbar(ct, cax=cbar_ax)
+ticks = cb.get_ticks()
+cb.set_ticks(ticks)
+cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+plt.show()
+```
+
+```{python}
+
+def plot_cells(
+    cells_column = 'fraction_complex_NPC_traverse_per_sec',
+    pretty_cell = "rate NPC traverse {:.1f} $sec^{{-1}}$",
+    x_column = 'passive_rate',
+    pretty_x = r'passive rate [$sec^{-1}$]',
+    y_column = 'rate_free_to_complex_per_sec',
+    pretty_y = r'NLS $k_{on}$ [$sec^{-1}$]'):
+
+    plt.style.use('./my.mplstyle.txt')
+    cells = df[cells_column].unique()[:2]
+    ncol = 3
+    nrow = len(traverses) // ncol + (len(traverses) % ncol > 0) * 1
+    fig,axes = plt.subplots(nrow, ncol,
+                            sharex=True, 
+                            sharey=True, 
+                            squeeze=False, 
+                            figsize = (17.0, 4.0*nrow+1.0))
+    axes_iter = iter(axes.reshape(-1))
+    for cell in cells:
+        ax = next(axes_iter)
+        is_cell = np.isclose(df[cells_column], cell)
+        N2C = df[is_cell].pivot(index=y_column, 
+                                   columns=x_column, 
+                                   values='N2C')
+        NC_min = 1.0
+        NC_max = 10.0
+        plt.sca(ax)
+        ct = my_plot_param_grid(N2C,
+                           pretty_x = pretty_x,
+                           pretty_y = pretty_y,
+                           pretty_z = r'N:C',
+                          vmin= NC_min,
+                          vmax= NC_max,
+                          levels= np.logspace(np.log2(NC_min),np.log2(NC_max),21, base=2.0),
+                                      locator= mpl.ticker.LogLocator(base=2.0),
+                          extend = 'both')
+        colors = ['r', 'g', 'b', 'k']
+        if(x_column == "passive_rate"):
+            xlim= ax.get_xlim()
+            for MW, color in zip(MWs, colors):
+                x0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+                x1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+                x1 = min(x1, xlim[1]*0.99)
+                y0 = N2C.index[0]
+                y1 = N2C.index[-1]
+                ax.plot((x0, x0), (y0, y1), color + "-", label = str(MW))     
+                plt.annotate(str(MW), (x0,y0), color=color)
+                ax.plot((x1, x1), (y0, y1), color + "-", linewidth=3.0)
+            ax.set_xlim(xlim)
+        if(y_column == "passive_rate"):
+            pass
+        plt.title(pretty_cell.format(cell))
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.3, 0.03, 0.4])
+    cb = fig.colorbar(ct, cax=cbar_ax)
+    ticks = cb.get_ticks()
+    cb.set_ticks(ticks)
+    cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+    plt.show()
+
+plot_cells()
+```
+
+## next one
+
+```{python}
+import map_param_grid as mpg
 def get_dLogRatios_by_passive(stats_grids_by_passive, ts_by_passive):
     dRatios_by_passive = {}
     keys= sorted(stats_grids_by_passive.keys())
