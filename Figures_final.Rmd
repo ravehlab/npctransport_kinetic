@@ -1,0 +1,363 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.5.1
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+```{python}
+#NOTE: Most test runs are on a conda py36 environment on Mac
+# In principle, should work on any python but multiprocessing packaage
+# is sensitive and may require tuning.
+# !pwd
+```
+
+```{python}
+# !python test_transport_simulation.py
+```
+
+```{python}
+import importlib
+import transport_simulation
+from transport_simulation import TransportSimulation
+import seaborn as sns
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+
+```
+
+# Load pickle files from run03
+
+```{python}
+import pickle
+import numpy as np
+import pandas as pd
+import map_param_grid as mpg
+import importlib
+importlib.reload(mpg)
+
+with open("run03/run03.pkl","rb") as F:
+    stats_grids_by_passive, ts_by_passive = pickle.load(F)
+param_range = {'tag_x': 'fraction_complex_NPC_traverse_per_sec', 
+ 'range_x': np.array([   1.        ,    1.24093776,    1.53992653,    1.91095297,
+          2.37137371,    2.94272718,    3.65174127,    4.53158364,
+          5.62341325,    6.97830585,    8.65964323,   10.74607828,
+         13.33521432,   16.548171  ,   20.53525026,   25.48296748,
+         31.6227766 ,   39.24189758,   48.69675252,   60.42963902,
+         74.98942093,   93.05720409,  115.47819847,  143.30125702,
+        177.827941  ,  220.67340691,  273.84196343,  339.82083289,
+        421.69650343,  523.29911468,  649.38163158,  805.84218776,
+       1000.        ]), 
+ 'pretty_x': 
+ 'rate NPC traverse [$sec^{-1}$]', 
+ 'tag_y': 'rate_free_to_complex_per_sec', 
+ 'range_y': np.array([1.00000000e-03, 1.30494682e-03, 1.70288620e-03, 2.22217592e-03,
+       2.89982140e-03, 3.78411271e-03, 4.93806584e-03, 6.44391330e-03,
+       8.40896415e-03, 1.09732510e-02, 1.43195090e-02, 1.86861977e-02,
+       2.43844942e-02, 3.18204681e-02, 4.15240186e-02, 5.41866359e-02,
+       7.07106781e-02, 9.22736744e-02, 1.20412238e-01, 1.57131566e-01,
+       2.05048338e-01, 2.67577176e-01, 3.49173984e-01, 4.55653479e-01,
+       5.94603558e-01, 7.75926020e-01, 1.01254219e+00, 1.32131371e+00,
+       1.72424412e+00, 2.25004688e+00, 2.93619151e+00, 3.83157377e+00,
+       5.00000000e+00]), 
+  'pretty_y': 'NTR $k_{on}$ [$sec^{-1}$]'}       
+
+pd.set_option("display.max_columns", None)
+df = mpg.get_df_from_stats_grids_by_passive \
+    (param_range, stats_grids_by_passive, ts_by_passive)
+display(df.head())
+```
+
+# General visualization
+
+```{python}
+MWs = [27,41,54,67]
+
+def get_passive_nuclear_molar_rate_per_sec(MW, is_force): # TODO: verify it corresponds to multiplyng by concentration rather than nmolecules
+    #TODO: generalize this - either from the literature or regression
+    base_rates={ 27:0.0805618, 
+                41:0.06022355, 
+                54:0.03301662, 
+                67:0.0287649 }
+    rate= base_rates[MW]
+    if is_force:
+        rate += get_force_effect_on_diffusion(MW)
+    return rate
+
+def get_force_effect_on_diffusion(MW):
+    """
+    The effect of force on passive diffusion as measured by experiment
+    """
+    effects = {27:0.08214946, 
+                41:0.03027974, 
+                54:0.01, # 54:0.00026308, 
+                67:0.01 } #67:0.00272423 }
+    return effects[MW]
+
+def my_plot_param_grid(df, # a pivoted 2D dataframe
+                       pretty_x = None,
+                       pretty_y = None,
+                       pretty_z = None,
+                       is_colorbar = False,
+                       **contourf_kwargs):
+    X, Y = np.meshgrid(df.columns, df.index)
+    ax = plt.gca()
+    ctr = plt.contourf( X, Y, df.to_numpy(), 
+                **contourf_kwargs)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel(pretty_x)
+    ax.set_ylabel(pretty_y)
+    xlim= ax.get_xlim()
+    ylim= ax.get_ylim()
+    if xlim[1]>xlim[0]:
+        ax.set_xlim(xlim[1], xlim[0])
+    if is_colorbar:
+        cb = plt.colorbar(label= pretty_z)
+        ticks = cb.get_ticks()
+        cb.set_ticks(ticks)
+        cb.set_ticklabels(["{:.2f}".format(tick) for tick in ticks])
+    return ctr
+```
+
+## N2C, mechano
+
+```{python}
+from matplotlib import ticker
+VERBOSE = False
+plt.style.use('./my.mplstyle.txt')
+NLSs =  df['rate_free_to_complex_per_sec'].unique()
+if VERBOSE or True:
+    print("NLSs [s^-1]: ", NLSs)
+NLSs_subset = np.array([1.00000000e-03, 1.30494682e-03, 1.70288620e-03, 2.22217592e-03,
+ 2.89982140e-03, 3.78411271e-03, 4.93806584e-03, 6.44391330e-03,
+ 8.40896415e-03, 1.09732510e-02, 1.43195090e-02, 1.86861977e-02,
+ 2.43844942e-02, 3.18204681e-02, 4.15240186e-02, 5.41866359e-02,
+ 7.07106781e-02, 9.22736744e-02, 1.20412238e-01, 1.57131566e-01,
+ 2.05048338e-01, 2.67577176e-01, 3.49173984e-01, 4.55653479e-01,
+ 5.94603558e-01, 7.75926020e-01, 1.01254219e+00, 1.32131371e+00,
+ 1.72424412e+00 ])
+N2C_by_NLS_yes = []
+N2C_by_NLS_no = []
+Mechano_by_NLS = []
+for NLS in NLSs_subset:
+    N2Cs_no = []
+    N2Cs_yes = []
+    Mechanos = []
+    iNLS = np.argsort(np.abs(NLSs-NLS))[0]
+    NLS_match = NLSs[iNLS]
+    print(f"\n\n\n----\nNLS match {NLS_match*1e3} ms^-1")
+    is_NLS = df['rate_free_to_complex_per_sec'] == NLS_match
+    df_N2C = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='N2C')
+    x0 = 15.0
+    x1 = 150.0
+    ix0 = np.argsort(np.abs(df_N2C.columns - x0))[0]
+    ix1 = np.argsort(np.abs(df_N2C.columns - x1))[0]
+    for MW in MWs:
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        iy0 = np.argsort(np.abs(df_N2C.index - y0))[0]
+        iy1 = np.argsort(np.abs(df_N2C.index - y1))[0]
+        if(MW > 50):
+            iy1 = iy0
+        no = df_N2C.iloc[iy0, ix0]
+        yes = df_N2C.iloc[iy1, ix1]
+        mechano = yes / no
+        if VERBOSE:
+            print("------")
+            print(MW, y0, y1)
+            print(f"Mechanosensitivity {mechano:.1f}")
+            display(df_N2C.iloc[[iy0,iy1],[ix0,ix1]])
+        N2Cs_no.append(no)
+        N2Cs_yes.append(yes)
+        Mechanos.append(mechano)
+        if MW==41:
+            N2C_by_NLS_no.append(no)
+            N2C_by_NLS_yes.append(yes)
+            Mechano_by_NLS.append(mechano)
+    fig, ax = plt.subplots(2,1, figsize=(3.5,6), sharex= True)
+    ax[0].plot(np.array(MWs)-1, N2Cs_no, 'bo', label = 'soft', markersize=4)
+    ax[0].plot(np.array(MWs)+1, N2Cs_yes, 'ro', label = 'stiff', markersize=4)
+    ax[0].set_ylabel("N:C")
+    ax[0].legend(frameon=True)
+    ax[1].plot(MWs, Mechanos, 'ko')
+    ax[1].set_xlabel("MW [kDa]")
+    ax[1].set_ylabel("mechanosensitivity")
+    ax[1].set_ylim([0.5,3.0])
+    ax[1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    ax[0].set_xticks(MWs)
+    plt.show()
+    print("MWs", MWs)
+    print("N2C soft", N2Cs_no)
+    print("N2C stiff", N2Cs_yes)
+    print("mechano:", Mechanos)
+    print()
+    
+for xmax in [None, 400.0]:
+    fig, ax = plt.subplots(2,1, figsize=(3.5,6), sharex= True)
+    ax[0].plot(NLSs_subset*1e3-1, N2C_by_NLS_no, 'bo', label = 'soft', markersize=4)
+    ax[0].plot(NLSs_subset*1e3+1, N2C_by_NLS_yes, 'ro', label = 'stiff', markersize=4)
+    ax[0].set_ylabel("N:C")
+    ax[0].legend(frameon=True)
+    ax[1].plot(NLSs_subset*1e3, Mechano_by_NLS, 'ko')
+    ax[1].set_xlabel(r"NLS strength [$ms^1$]")
+    ax[1].set_ylabel("mechanosensitivity")
+    ax[1].set_ylim([0.5,3.0])
+    ax[1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    ax[0].set_xlim(xmin=1.0, xmax=xmax)
+    ax[0].set_xscale('log')
+    plt.show()
+    print("NLSs", NLSs_subset)
+    print("N2C soft", N2C_by_NLS_no)
+    print("N2C stiff", N2C_by_NLS_yes)
+    print("mechano:", Mechano_by_NLS)
+    print()
+
+```
+
+# Import/Export/I:E/Mechano
+
+```{python}
+from matplotlib import ticker
+import copy
+VERBOSE = False
+PLOT_EACH = False
+plt.style.use('./my.mplstyle.txt')
+NLSs =  df['rate_free_to_complex_per_sec'].unique()
+if VERBOSE or True:
+    print("NLSs [s^-1]: ", NLSs)
+NLSs_subset = np.array([1.00000000e-03, 1.30494682e-03, 1.70288620e-03, 2.22217592e-03,
+ 2.89982140e-03, 3.78411271e-03, 4.93806584e-03, 6.44391330e-03,
+ 8.40896415e-03, 1.09732510e-02, 1.43195090e-02, 1.86861977e-02,
+ 2.43844942e-02, 3.18204681e-02, 4.15240186e-02, 5.41866359e-02,
+ 7.07106781e-02, 9.22736744e-02, 1.20412238e-01, 1.57131566e-01,
+ 2.05048338e-01, 2.67577176e-01, 3.49173984e-01, 4.55653479e-01,
+ 5.94603558e-01, 7.75926020e-01, 1.01254219e+00, 1.32131371e+00,
+ 1.72424412e+00 ])
+empty_stats = {'import':[],
+            'export':[],
+           'i2e':[]}
+Yes_by_NLS = copy.deepcopy(empty_stats)
+No_by_NLS = copy.deepcopy(empty_stats)
+Mechanos_by_NLS = copy.deepcopy(empty_stats)
+for NLS in NLSs_subset:
+    No = copy.deepcopy(empty_stats)
+    Yes = copy.deepcopy(empty_stats)
+    Mechanos = copy.deepcopy(empty_stats)
+    iNLS = np.argsort(np.abs(NLSs-NLS))[0]
+    NLS_match = NLSs[iNLS]
+    print(f"NLS match {NLS_match*1e3} ms^-1")
+    is_NLS = df['rate_free_to_complex_per_sec'] == NLS_match
+    df_import = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='nuclear_import_per_sec')
+    df_export = df[is_NLS].pivot(index='passive_rate', 
+                                       columns='fraction_complex_NPC_traverse_per_sec', 
+                                       values='nuclear_export_per_sec')    
+    x0 = 15.0
+    x1 = 150.0
+    ix0 = np.argsort(np.abs(df_N2C.columns - x0))[0]
+    ix1 = np.argsort(np.abs(df_N2C.columns - x1))[0]
+    for MW in MWs:
+        y0 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=False)
+        y1 = get_passive_nuclear_molar_rate_per_sec(MW, is_force=True)
+        iy0 = np.argsort(np.abs(df_N2C.index - y0))[0]
+        iy1 = np.argsort(np.abs(df_N2C.index - y1))[0]
+        if(MW > 50):
+            iy1 = iy0
+        for Stats, ix, iy in zip([No,Yes], [ix0, ix1], [iy0, iy1]):
+            Stats['import'].append( df_import.iloc[iy, ix] )
+            Stats['export'].append( df_export.iloc[iy, ix] )
+            Stats['i2e'].append( Stats['import'][-1] / Stats['export'][-1] )
+        for category in empty_stats.keys():
+            Mechanos[category].append(Yes[category][-1] / No[category][-1])
+        if MW==41:
+            for category in empty_stats.keys():
+                No_by_NLS[category].append(No[category][-1])
+                Yes_by_NLS[category].append(Yes[category][-1])
+                Mechanos_by_NLS[category].append(Mechanos[category][-1])
+    if PLOT_EACH:
+        fig, ax = plt.subplots(4,1, figsize=(3.5,9), sharex= True)
+        for i,category in enumerate(['import','export','i2e']):
+            ax[i].plot(np.array(MWs)-1, No[category], 'bo', label = 'soft', markersize=4)
+            ax[i].plot(np.array(MWs)+1, Yes[category], 'ro', label = 'stiff', markersize=4)
+            ax[i].set_ylabel(category if category!='i2e' else 'import:export')
+            ax[i].legend(frameon=True)
+            ax[i].set_xticks(MWs)
+            if category in ['import', 'export']:
+                ax[i].set_yscale('log')  
+            ax[i].set_ylim(ymax=1.1*max(max(Yes[category]),max(No[category])))
+        ax[-1].plot(MWs, Mechanos[category], 'ko')
+        ax[-1].set_xlabel("MW [kDa]")
+        ax[-1].set_ylabel("mechanosensitivity")
+        ax[-1].set_ylim([0.5,3.0])
+        ax[-1].set_yscale('log')
+        positions = [0.5, 1.0, 2.0, 4.0]
+        ax[-1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+        ax[-1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+        ax[-1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+        ax[-1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+        plt.show()
+        print("MWs", MWs)
+        print("Soft", No)
+        print("Stiff", Yes)
+        print("mechano:", Mechanos)
+        print()
+    
+    
+      
+for xmax in [None, 400.0]:
+    fig, ax = plt.subplots(4,1, figsize=(3.5,9), sharex= True)
+    for i,category in enumerate(['import','export','i2e']):
+        ax[i].plot(NLSs_subset*1e3-1, No_by_NLS[category], 'bo', label = 'soft', markersize=4)
+        ax[i].plot(NLSs_subset*1e3+1, Yes_by_NLS[category], 'ro', label = 'stiff', markersize=4)
+        ax[i].set_ylabel(category if category!='i2e' else 'import:export')
+        ax[i].legend(frameon=True)
+        ax[i].set_xlim(xmin=1.0, xmax=xmax)
+        ax[i].set_xscale('log')
+        if category in ['import', 'export']:
+            ax[i].set_yscale('log')
+            ax[i].set_ylim(ymax=1.25*max(max(Yes[category]),max(No[category])))
+    ax[-1].plot(NLSs_subset*1e3, Mechanos_by_NLS[category], 'ko')
+    ax[-1].set_xlabel(r"NLS strength [$ms^1$]")
+    ax[-1].set_ylabel("mechanosensitivity")
+    ax[-1].set_ylim([0.5,3.0])
+    ax[-1].set_yscale('log')
+    positions = [0.5, 1.0, 2.0, 4.0]
+    ax[-1].yaxis.set_major_locator(ticker.FixedLocator(positions))
+    ax[-1].yaxis.set_major_formatter(ticker.FixedFormatter(positions))
+    ax[-1].yaxis.set_minor_locator(ticker.FixedLocator([]))
+    ax[-1].yaxis.set_minor_formatter(ticker.FixedFormatter([]))
+    plt.show()
+print("NLSs", NLSs_subset)
+print("Soft", No_by_NLS)
+print("Stiff", Yes_by_NLS)
+print("Mechano:", Mechano_by_NLS)
+print()
+
+
+```
+
+```{python}
+
+```
