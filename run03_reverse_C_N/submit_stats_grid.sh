@@ -26,8 +26,8 @@ stats_grid.get_stats_on_grid(
     n_passive=22,
     cargo_concentration_M=0.1e-6,
     Ran_concentration_M=20e-6,
-    v_N_L=627e-15,
-    v_C_L=2194e-15,
+    v_N_L=2194e-15,
+    v_C_L=627e-15,
     pickle_file="run03_reverse_N_C_volume.pkl",
     number_of_processors=${SLURM_CPUS_PER_TASK})
 EOF
