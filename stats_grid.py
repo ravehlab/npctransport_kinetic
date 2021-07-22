@@ -77,9 +77,9 @@ def get_param_range_traverse_kon(nx,
     return param_range
 def get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec,
                                         Ran_cell_M = 20.0e-6,
+                                        v_N_L=627e-15,
+                                        v_C_L=2194e-15,
                                         **kwargs):    
-    v_N_L=627e-15
-    v_C_L=2194e-15    
     ts= transport_simulation.TransportSimulation(v_N_L= v_N_L,
                                                 v_C_L= v_C_L)
     ts.set_time_step(0.1e-3)
@@ -183,25 +183,26 @@ def plot_stats_grids(stats_grids, transport_simulation, param_range,
 def transport_simulation_generator(passive, Ran_cell_M, c_M, **kwargs):
     print(f"Ran: {Ran_cell_M:.6f} M")
     return get_transport_simulation_by_passive(passive_nuclear_molar_rate_per_sec= passive, 
-                                               Ran_cell_M = Ran_cell_M, init_cargo_cytoplasm_M=c_M,
+                                               Ran_cell_M = Ran_cell_M,
+                                               init_cargo_cytoplasm_M=c_M,
                                                **kwargs)
 
     
 def get_stats_on_grid(output,
-         passive_range,
-         npc_traverse_range,
-         k_on_range,
-         nx=20,
-         ny=20,
-         n_passive=10,
-         cargo_concentration_M=50e-6,
-         Ran_concentration_M=20e-6,
-         pickle_file=None,
-         number_of_processors=1
-
+                      passive_range,
+                      npc_traverse_range,
+                      k_on_range,
+                      nx=20,
+                      ny=20,
+                      n_passive=10,
+                      cargo_concentration_M=50e-6,
+                      Ran_concentration_M=20e-6,
+                      v_N_L=627e-15,
+                      v_C_L=2194e-15,
+                      equilibration_time_sec = 100.0,
+                      pickle_file=None,
+                      number_of_processors=1               
 ):
-    test_ts= get_transport_simulation_by_passive(0.02, False)
-    print(test_ts.max_passive_diffusion_rate_nmol_per_sec_per_M)
     param_range= get_param_range_traverse_kon(nx, ny,
                                               npc_traverse_range,
                                               k_on_range)
@@ -217,12 +218,14 @@ def get_stats_on_grid(output,
                 continue
             tsg_params = {"passive":passive,
                           "Ran_cell_M":Ran_concentration_M,
-                          "c_M": cargo_concentration_M}
+                          "c_M": cargo_concentration_M,
+                          "v_N_L": v_N_L,
+                          "v_C_L": v_C_L}
             stats_grids_traverse_by_passive_force[key], \
             ts_traverse_by_passive_force[key] = \
                 map_param_grid.map_param_grid_parallel\
                 ( param_range,
-                  equilibration_time_sec= 100.0,
+                  equilibration_time_sec= equilibration_time_sec,
                   n_processors= n_processors,
                   transport_simulation_generator= transport_simulation_generator,
                   transport_simulation_generator_params= tsg_params)
